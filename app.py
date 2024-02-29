@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import networkx as nx
+import numpy as np
 from flask import Flask, session, render_template, request, redirect, flash, jsonify, redirect, url_for, send_file, current_app
 from werkzeug.utils import secure_filename
 from algorithms import calculate_centrality, detect_communities
@@ -311,8 +312,17 @@ def show_dendrogram(filename):
         flash('Error loading graph data.', 'danger')
         return redirect(url_for('upload_file'))
 
+    # Inverse weight for distance calculation
+    def inverse_weight(u, v, d):
+        weight = d.get('weight', 1.0)  # 获取边的权重，如果没有设置，默认为1.0
+        if weight != 0:
+            return 1.0 / weight
+        else:
+            # 对于权重为0的边，返回一个很大的数值，表示非常高的疏远度
+            return np.finfo(float).max
+
     # Compute the distance matrix directly from graph G
-    distance_matrix = nx.floyd_warshall_numpy(G, weight='weight')
+    distance_matrix = nx.floyd_warshall_numpy(G, weight=inverse_weight)
     # Convert the numpy array returned by floyd_warshall_numpy to a format suitable for the linkage function
     Z = linkage(squareform(distance_matrix, checks=False), method='complete')
 
