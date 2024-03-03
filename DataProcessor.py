@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from itertools import combinations
 import torch
+from flask import session
 from torch_geometric.data import Data
 import torch.nn.functional as F
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
@@ -25,6 +26,7 @@ class GraphSAGEProcessor:
             'manager': ['manager', 'supervisor', 'manager_name','managername']
         }
         self.NODE_FEATURES = []
+        self.epoches = 200
 
     def load_data(self, file_path):
         if file_path.endswith('.csv'):
@@ -138,16 +140,16 @@ class GraphSAGEProcessor:
 
     def features_generator(self, hr_data, node_features):
         hr_data_parsed = self.preprocess_data(hr_data, node_features)
-
         # Exclude 'id' and 'name' columns from features
         feature_columns = [col for col in hr_data.columns if col in node_features]
-
+        
         features_data = hr_data_parsed[feature_columns].values
         
         return features_data
 
     def feature_index_generator(self, features):
         feature_index = torch.tensor(features, dtype=torch.float)
+        
         return feature_index
 
     def nanCheck(self, hr_data, feature_index):
@@ -182,7 +184,7 @@ class GraphSAGEProcessor:
         data = Data(x=feature_index, edge_index=edge_index)
 
         # Training loop
-        for epoch in range(200):  # Adjust the number of epochs as needed
+        for epoch in range(self.epoches):  # Adjust the number of epochs as needed
             model.train()
             optimizer.zero_grad()
             out = model(data.x, data.edge_index)
@@ -193,8 +195,11 @@ class GraphSAGEProcessor:
             loss.backward()
             optimizer.step()
 
-            # if epoch % 10 == 0:
-            #     print(f'Epoch {epoch}, Loss: {loss.item()}')
+            # if epoch == self.epochs - 1:  # Check if it's the last epoch
+            #     session['training_progress'] = "complete"
+            # else:
+            #     session['training_progress'] = f"Epoch {epoch + 1}/{self.epochs}"
+            # session.modified = True
 
         # Generate embeddings for nodes without gradient calculations
         model.eval()  # Switch to evaluation mode

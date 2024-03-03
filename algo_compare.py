@@ -31,7 +31,6 @@ for size in graph_sizes:
     louvain_times.append(time_execution(G, community_louvain.best_partition))
 
     # Time Betweenness Centrality
-    # Note: Betweenness centrality is computationally expensive, so be cautious with large graph sizes
     betweenness_times.append(time_execution(G, nx.betweenness_centrality))
 
     # Time Greedy Modularity Community Detection
