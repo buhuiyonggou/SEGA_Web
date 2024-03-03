@@ -88,7 +88,7 @@ def get_data_with_weight(processor, feature_index, edge_index, index_to_name_map
         
 @app.route('/')
 def home():
-    return render_template('Home.html')
+    return render_template('Home.ejs')
 
 @app.route('/user_upload', methods=['GET', 'POST'])
 def upload_user_data():
