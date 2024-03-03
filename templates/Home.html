@@ -28,7 +28,6 @@
         border-radius: 8px;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         background: rgba(255, 255, 255, 0.8);
-        margin: auto;
       }
       h1,
       h2,
@@ -85,10 +84,10 @@
           <label for="employeeFile"
             >Employee Document <i class="fas fa-asterisk required-icon"></i
           ></label>
-          <small id="employeeFileHelp" class="form-text text-muted"
+          <small id="employeeFileHelp" class="form-text text-muted mt-n1"
             ><p>
               Please make sure your file contains column "<strong>id</strong>",
-              "<strong>name</strong>"
+              "<strong>name</strong>", and "<strong>department</strong>"
             </p></small
           >
         </div>
@@ -103,7 +102,7 @@
           />
           <label for="relationshipFile">Relationship File </label>
           <small id="relationshipFileHelp" class="text-muted">
-            <p class="">
+            <p class="mt-n1">
               Please make sure your file contains column
               "<strong>source</strong>", "<strong>target</strong>",
             </p>
@@ -112,7 +111,6 @@
             </p></small
           >
         </div>
-
         <div id="loadingArea" style="display: none" class="text-center">
           <div class="progress">
             <div

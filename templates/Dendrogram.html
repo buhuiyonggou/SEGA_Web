@@ -1,141 +1,177 @@
 <!DOCTYPE html>
 <html>
-<head>
+  <head>
     <title>Dendrogram</title>
-    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
     <style>
-        body {
-            font-family: 'Roboto', sans-serif;
-            background: linear-gradient(to right, #ADD8E6 0%, #DDA0DD 100%);
-            margin-top: 20px;
-            color: #333;
-        }
-        .container {
-            background: rgba(255, 255, 255, 0.85);
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            padding: 20px;
-            margin-bottom: 20px;
-        }
-        .legend, .find-path-form {
-            background: rgba(255, 255, 255, 0.9);
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 20px;
-            box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
-        }
-        h1, .modal-title {
-            color: #333;
-        }
-        .path-result {
-            background: rgba(255, 255, 255, 0.9);
-            padding: 10px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-top: 10px;
-        }
-        .modal-content {
-            border-radius: 8px;
-        }
+      body {
+        font-family: "Roboto", sans-serif;
+        background: linear-gradient(to right, #add8e6 0%, #dda0dd 100%);
+        margin-top: 20px;
+        color: #333;
+      }
+      .container {
+        background: rgba(255, 255, 255, 0.85);
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+      .legend,
+      .find-path-form {
+        background: rgba(255, 255, 255, 0.9);
+        padding: 15px;
+        border-radius: 8px;
+        margin-top: 20px;
+        box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.05);
+      }
+      h1,
+      .modal-title {
+        color: #333;
+      }
+      .path-result {
+        background: rgba(255, 255, 255, 0.9);
+        padding: 10px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        margin-top: 10px;
+      }
+      .modal-content {
+        border-radius: 8px;
+      }
 
-        /* Button Style Enhancements */
-        .btn-primary, .btn-secondary {
-            border: none;
-            padding: 10px 20px;
-            font-size: 16px; /* Adjust font size as needed */
-            border-radius: 8px; /* Rounded corners for the buttons */
-            transition: background-color 0.3s, box-shadow 0.3s; /* Smooth transition for background and shadow */
-        }
+      /* Button Style Enhancements */
+      .btn-primary,
+      .btn-secondary {
+        border: none;
+        padding: 10px 20px;
+        font-size: 16px; /* Adjust font size as needed */
+        border-radius: 8px; /* Rounded corners for the buttons */
+        transition: background-color 0.3s, box-shadow 0.3s; /* Smooth transition for background and shadow */
+      }
 
-        .btn-primary {
-            background-color: #2575fc; /* 更鲜艳的蓝色 */
-            border-color: #2063d6; /* 深一点的蓝色边框 */
-        }
+      .btn-primary {
+        background-color: #2575fc; 
+        border-color: #2063d6; 
+      }
 
-        .btn-secondary {
-            background-color: #6FA8DC; /* 更深的浅蓝色 */
-            border-color: #5E97D1; /* 与背景色相配的更深的边框颜色 */
-        }
+      .btn-secondary {
+        background-color: #6fa8dc;
+        border-color: #5e97d1;
+      }
 
-        .btn-info {
-            background-color: #BA55D3; /* 更深的浅紫色 */
-            border-color: #A94FD3; /* 与背景色相配的更深的边框颜色 */
-        }
+      .btn-info {
+        background-color: #ba55d3; 
+        border-color: #a94fd3; 
+      }
 
-        .btn-secondary:hover {
-            background-color: #5E97D1; /* 悬停时的颜色更深 */
-            border-color: #5378C3; /* 悬停时的边框颜色也相应变深 */
-        }
+      .btn-secondary:hover {
+        background-color: #5e97d1; 
+        border-color: #5378c3; 
+      }
 
-        .btn-info:hover {
-            background-color: #A94FD3; /* 悬停时的颜色更深 */
-            border-color: #983BCE; /* 悬停时的边框颜色也相应变深 */
-        }
+      .btn-info:hover {
+        background-color: #a94fd3; 
+        border-color: #983bce; 
+      }
 
-        .btn:focus, .btn:active {
-            box-shadow: 0 0 0 2px rgba(37, 117, 252, 0.5); /* 主按钮焦点样式保持不变 */
-        }
+      .btn:focus,
+      .btn:active {
+        box-shadow: 0 0 0 2px rgba(37, 117, 252, 0.5); 
+      }
 
-        .btn-secondary:focus, .btn-secondary:active {
-            box-shadow: 0 0 0 2px rgba(110, 168, 220, 0.5); /* 为更深的浅蓝色按钮调整焦点和活动状态的阴影颜色 */
-        }
+      .btn-secondary:focus,
+      .btn-secondary:active {
+        box-shadow: 0 0 0 2px rgba(110, 168, 220, 0.5); 
+      }
 
-        .btn-info:focus, .btn-info:active {
-            box-shadow: 0 0 0 2px rgba(186, 85, 211, 0.5); /* 为更深的浅紫色按钮调整焦点和活动状态的阴影颜色 */
-        }
+      .btn-info:focus,
+      .btn-info:active {
+        box-shadow: 0 0 0 2px rgba(186, 85, 211, 0.5); 
+      }
 
-        /* Additional styles for better UI */
-        .alert-message {
-            margin-top: 20px;
-        }
+      /* Additional styles for better UI */
+      .alert-message {
+        margin-top: 20px;
+      }
 
-        .legend, .find-path-form {
-            border: solid 1px #ddd; /* Add a border to forms for better definition */
-        }
+      .legend,
+      .find-path-form {
+        border: solid 1px #ddd; /* Add a border to forms for better definition */
+      }
 
-        /* Improve form field visibility */
-        input[type="text"] {
-            border-radius: 8px;
-            border: 1px solid #ccc;
-            padding: 5px 10px;
-            width: calc(100% - 24px); /* Adjust width to fit padding and border */
-            margin-bottom: 10px; /* Space out elements */
-        }
+      /* Improve form field visibility */
+      input[type="text"] {
+        border-radius: 8px;
+        border: 1px solid #ccc;
+        padding: 5px 10px;
+        width: calc(100% - 24px); /* Adjust width to fit padding and border */
+        margin-bottom: 10px; /* Space out elements */
+      }
 
-        /* Style adjustments for the iframe */
-        iframe {
-            border-radius: 8px; /* Rounded corners for the iframe */
-            border: none; /* Remove default border */
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Consistent shadow with other elements */
-        }
-
+      /* Style adjustments for the iframe */
+      iframe {
+        border-radius: 8px; /* Rounded corners for the iframe */
+        border: none; /* Remove default border */
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Consistent shadow with other elements */
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="container">
-        <h1>Hierarchical Clustering</h1>
-        <iframe src="{{ url_for('static', filename=dendrogram_html_filename) }}" height="800" width="100%"></iframe>
+      <h1>Hierarchical Clustering</h1>
+      <iframe
+        src="{{ url_for('static', filename=dendrogram_html_filename) }}"
+        height="800"
+        width="100%"
+      ></iframe>
 
-        <!-- Legend explaining how to interpret the dendrogram -->
-        <div class="legend">
-            <h4>How to Interpret the Dendrogram</h4>
-            <p>The dendrogram is a tree-like diagram that records the sequences of merges or splits. The root of the tree represents the single cluster that gathers all the samples, and the leaves represent the data points.</p>
-            <p>In the displayed dendrogram:</p>
-            <ul>
-                <li>Each branching represents a merge of clusters.</li>
-                <li>The height of the branching point indicates the distance (dissimilarity) between merging clusters.</li>
-                <li>Clusters that merge at lower heights are more similar to each other than those that merge at higher heights.</li>
-                <li>Navigate through the tree to see the hierarchical clustering and explore relationships between data points.</li>
-                <li>A label "Cluster of X" indicates an internal node that represents a cluster with X individuals. These clusters can be expanded to show how individuals or sub-clusters are grouped within.</li>
-                <li>Leaf nodes labeled with names are individual observations and cannot be expanded as they represent the most granular level of data.</li>
-            </ul>
-        </div>
+      <!-- Legend explaining how to interpret the dendrogram -->
+      <div class="legend">
+        <h4>How to Interpret the Dendrogram</h4>
+        <p>
+          The dendrogram is a tree-like diagram that records the sequences of
+          merges or splits. The root of the tree represents the single cluster
+          that gathers all the samples, and the leaves represent the data
+          points.
+        </p>
+        <p>In the displayed dendrogram:</p>
+        <ul>
+          <li>Each branching represents a merge of clusters.</li>
+          <li>
+            The height of the branching point indicates the distance
+            (dissimilarity) between merging clusters.
+          </li>
+          <li>
+            Clusters that merge at lower heights are more similar to each other
+            than those that merge at higher heights.
+          </li>
+          <li>
+            Navigate through the tree to see the hierarchical clustering and
+            explore relationships between data points.
+          </li>
+          <li>
+            A label "Cluster of X" indicates an internal node that represents a
+            cluster with X individuals. These clusters can be expanded to show
+            how individuals or sub-clusters are grouped within.
+          </li>
+          <li>
+            Leaf nodes labeled with names are individual observations and cannot
+            be expanded as they represent the most granular level of data.
+          </li>
+        </ul>
+      </div>
 
-        <a href="{{ url_for('upload_file') }}" class="btn btn-info mt-4">Upload Another File</a>
-        <p>Current Filename: {{ filename }}</p>
+      <a href="{{ url_for('upload_file') }}" class="btn btn-info mt-4"
+        >Upload Another File</a
+      >
+      <p>Current Filename: {{ filename }}</p>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-</body>
+  </body>
 </html>

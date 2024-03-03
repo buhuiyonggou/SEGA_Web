@@ -1,7 +1,6 @@
 import os
 import pandas as pd
 import networkx as nx
-import numpy as np
 from flask import Flask, session, render_template, request, redirect, flash, jsonify, redirect, url_for, send_file, current_app
 from werkzeug.utils import secure_filename
 from algorithms import calculate_centrality, detect_communities
@@ -16,8 +15,6 @@ from DataProcessor import GraphSAGEProcessor
 
 app = Flask(__name__)
 
-# hello
-# 配置上传文件夹和允许上传的文件类型
 # Configuration for the file upload folder and allowed file types
 UPLOAD_FOLDER = 'uploads'
 RAW_DATA_FOLDER = 'raw_data'
@@ -153,7 +150,6 @@ def data_process():
         
         # get features with number
         features = processor.features_generator(hr_data, node_features)
-        print(features)
         
         feature_index = processor.feature_index_generator(features)
         
@@ -177,6 +173,11 @@ def data_process():
         session.pop('node_filepath', None)
         session.pop('edge_filepath', None)
     return render_template('dataProcess.html', process_success=session.get('process_success', False))
+
+@app.route('/training_progress')
+def training_progress():
+    progress = session.get('training_progress', 'Not started')
+    return jsonify({'progress': progress})
 
 @app.route('/download_processed_file')
 def download_processed_file():
@@ -312,17 +313,8 @@ def show_dendrogram(filename):
         flash('Error loading graph data.', 'danger')
         return redirect(url_for('upload_file'))
 
-    # Inverse weight for distance calculation
-    def inverse_weight(u, v, d):
-        weight = d.get('weight', 1.0)  # 获取边的权重，如果没有设置，默认为1.0
-        if weight != 0:
-            return 1.0 / weight
-        else:
-            # 对于权重为0的边，返回一个很大的数值，表示非常高的疏远度
-            return np.finfo(float).max
-
     # Compute the distance matrix directly from graph G
-    distance_matrix = nx.floyd_warshall_numpy(G, weight=inverse_weight)
+    distance_matrix = nx.floyd_warshall_numpy(G, weight='weight')
     # Convert the numpy array returned by floyd_warshall_numpy to a format suitable for the linkage function
     Z = linkage(squareform(distance_matrix, checks=False), method='complete')
 
@@ -410,4 +402,4 @@ if __name__ == '__main__':
     if not os.path.exists(RAW_DATA_FOLDER):
         os.makedirs(RAW_DATA_FOLDER)
         
-    app.run(debug=True)
+    app.run(debug=True) 
