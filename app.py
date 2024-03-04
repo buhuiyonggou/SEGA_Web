@@ -113,7 +113,8 @@ def upload_data_store():
         if edge_file:
             session['edge_filepath'] = os.path.join(app.config['RAW_DATA_FOLDER'], secure_filename(edge_file.filename))
             edge_file.save(session['edge_filepath'])
-
+        session['process_success'] = False
+        
         return redirect(url_for('confirm_edge_upload'))
 
 @app.route('/confirm_edge_upload')
@@ -127,7 +128,7 @@ def confirm_edge_upload():
         flash('Files successfully uploaded.', 'success')
     return render_template('dataProcess.html', edge_file_provided='edge_filepath' in session)
 
-@app.route('/data_process')
+@app.route('/process_graphsage')
 def data_process():
     try:
         node_filepath = session.get('node_filepath')
@@ -181,6 +182,11 @@ def data_process():
         session.pop('node_filepath', None)
         session.pop('edge_filepath', None)
     return render_template('dataProcess.html', process_success=session.get('process_success', False))
+
+# adding later
+@app.route('/process_node2vec')
+def data_process_transductive():
+    return render_template('Home.html')
 
 @app.route('/training_progress')
 def training_progress():
