@@ -28,8 +28,7 @@ def allowed_file(filename):
     """Check if the uploaded file has an allowed extension."""
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-
+        
 # Convert adjacency matrix to edge list
 def adjacency_to_edgelist(adj_matrix_df):
     edges = []
@@ -90,10 +89,15 @@ def get_data_with_weight(processor, feature_index, edge_index, index_to_name_map
 def home():
     return render_template('Home.html')
 
-@app.route('/user_upload', methods=['GET', 'POST'])
+@app.route('/user_data_adoper', methods=['GET'])
 def upload_user_data():
+    eb_algorithm = request.args.get('eb_algorithm', 'graphSAGE') 
+    return render_template('UserDataAdopter.html', eb_algorithm=eb_algorithm)
+
+@app.route('/user_upload', methods=['GET', 'POST'])
+def upload_data_store():
     if request.method == 'POST':
-        node_file = request.files.get('employeeFile')
+        node_file = request.files.get('participantFile')
         if node_file and allowed_file(node_file.filename):
             node_filename = secure_filename(node_file.filename)
             
@@ -109,17 +113,22 @@ def upload_user_data():
         if edge_file:
             session['edge_filepath'] = os.path.join(app.config['RAW_DATA_FOLDER'], secure_filename(edge_file.filename))
             edge_file.save(session['edge_filepath'])
-
+        session['process_success'] = False
+        
         return redirect(url_for('confirm_edge_upload'))
 
 @app.route('/confirm_edge_upload')
 def confirm_edge_upload():
-    if 'node_filepath' in session and 'edge_filepath' not in session:
-        return render_template('confirm_edge_upload.html', delay_redirect=True) 
+    if 'node_filepath' not in session:
+        flash('No participant file detected. Please upload the required files.', 'error')
+        return redirect(url_for('upload_user_data'))
+    elif 'node_filepath' in session and 'edge_filepath' not in session:
+        flash('No edge file detected. Proceeding with inferred graph. You can upload an edge file to improve model accuracy.', 'warning')
     else:
-        return redirect(url_for('data_process'))
+        flash('Files successfully uploaded.', 'success')
+    return render_template('dataProcess.html', edge_file_provided='edge_filepath' in session)
 
-@app.route('/data_process')
+@app.route('/process_graphsage')
 def data_process():
     try:
         node_filepath = session.get('node_filepath')
@@ -173,6 +182,11 @@ def data_process():
         session.pop('node_filepath', None)
         session.pop('edge_filepath', None)
     return render_template('dataProcess.html', process_success=session.get('process_success', False))
+
+# adding later
+@app.route('/process_node2vec')
+def data_process_transductive():
+    return render_template('Home.html')
 
 @app.route('/training_progress')
 def training_progress():

@@ -24,7 +24,6 @@
       }
       .container {
         max-width: 600px;
-        padding: 20px;
         border-radius: 8px;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         background: rgba(255, 255, 255, 0.8);
@@ -39,191 +38,120 @@
         word-spacing: 3px;
         text-align: center;
       }
-      .required-icon {
-        color: red;
-        margin-left: 5px;
+      .custom-row-center {
+        margin-left: auto;
+        margin-right: auto;
+        width: 90%;
       }
-      .legend,
-      .progress,
-      .btn,
-      .form-control-file {
+      .center-col-sm-4,
+      .center-col-sm-6,
+      .center-col-sm-8 {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      .btn {
         margin-top: 10px;
         margin-bottom: 10px;
       }
-      .disabled-input {
-        pointer-events: none;
-        opacity: 0.5;
+      dt,
+      dd {
+        margin-bottom: 20px;
       }
-      .goToAnalyze {
-        display: flex;
-        justify-content: right;
-        margin-left: 35px;
-        margin-right: 35px;
+
+      .close-lines {
+        margin-bottom: -4px;
+        font-size: medium;
+      }
+      .custom-font {
+        font-weight: normal;
+      }
+      .custom-font-style {
+        color: grey;
+        font-style: italic;
+        font-weight: bold;
       }
     </style>
   </head>
   <body>
     <div class="container">
-      <h1>Welcome to GraphSAGE</h1>
-      <form
-        id="fileUploadForm"
-        action="/user_upload"
-        method="post"
-        enctype="multipart/form-data"
-      >
-        <div class="form-group text-center">
-          <input
-            type="file"
-            class="form-control-file"
-            style="margin-top: 20px; marign-bottom: 30px; margin-left: 30%"
-            id="employeeFile"
-            name="employeeFile"
-            onchange="disableInputField('employeeFile')"
-            required
-          />
-          <label for="employeeFile"
-            >Employee Document <i class="fas fa-asterisk required-icon"></i
-          ></label>
-          <small id="employeeFileHelp" class="form-text text-muted mt-n1"
-            ><p>
-              Please make sure your file contains column "<strong>id</strong>",
-              "<strong>name</strong>", and "<strong>department</strong>"
-            </p></small
-          >
-        </div>
-        <div class="form-group text-center">
-          <input
-            type="file"
-            class="form-control-file"
-            style="margin-top: 20px; marign-bottom: 30px; margin-left: 30%"
-            id="relationshipFile"
-            name="relationshipFile"
-            onchange="disableInputField('relationshipFile')"
-          />
-          <label for="relationshipFile">Relationship File </label>
-          <small id="relationshipFileHelp" class="text-muted">
-            <p class="mt-n1">
-              Please make sure your file contains column
-              "<strong>source</strong>", "<strong>target</strong>",
-            </p>
-            <p class="mt-n3">
-              and "<strong>a number representing relationship</strong>"
-            </p></small
-          >
-        </div>
-        <div id="loadingArea" style="display: none" class="text-center">
-          <div class="progress">
-            <div
-              class="progress-bar progress-bar-striped progress-bar-animated"
-              role="progressbar"
-              style="width: 100%"
-              aria-valuenow="100"
-              aria-valuemin="0"
-              aria-valuemax="100"
-            ></div>
-          </div>
-          <p>Uploading...</p>
-        </div>
+      <h1>Network Visualization</h1>
+      <dl class="row mt-4 m-2">
+        <dt class="col-sm-4 center-col-sm-4">What you expect</dt>
+        <dd class="col-sm-8 center-col-sm-8">
+          Fancy network graphs of your organizations
+        </dd>
 
-        <div class="d-flex justify-content-around flex-wrap">
-          <button
-            type="submit"
-            class="btn btn-primary"
-            id="confirmUploadBtn"
-            onclick="uploadFile()"
-            disabled
+        <dt class="col-sm-4 center-col-sm-4">What we provide</dt>
+        <dd class="col-sm-8">
+          <p class="center-col-sm-8 text-primary close-lines">
+            Standard relevant dataset through GNN
+          </p>
+          <p class="center-col-sm-8 text-primary close-lines">
+            Fancy visualization graphs
+          </p>
+        </dd>
+
+        <dt class="col-sm-4 center-col-sm-4">Other methods</dt>
+        <dd class="col-sm-8">
+          <dl class="row">
+            <dt class="col-sm-7 center-col-sm-8 custom-font close-lines">
+              Transductive Learning
+            </dt>
+            <dd class="col-sm-3 center-col-sm-8 custom-font-style close-lines">
+              Node2Vec
+            </dd>
+          </dl>
+          <dl class="row">
+            <dt class="col-sm-7 center-col-sm-8 custom-font close-lines">
+              Inductive Learning
+            </dt>
+            <dd class="col-sm-3 center-col-sm-8 custom-font-style close-lines">
+              GraphSAGE
+            </dd>
+          </dl>
+        </dd>
+      </dl>
+
+      <div class="row justify-content-center custom-row-center">
+        <div class="col text-center">
+          <a
+            href="{{ url_for('upload_user_data', eb_algorithm='graphSAGE') }}"
+            class="btn btn-primary d-block"
+            >Try GraphSAGE</a
           >
-            Confirm Upload
-          </button>
-          <button type="button" class="btn btn-danger" onclick="cancelUpload()">
-            Cancel Upload
-          </button>
-          <button
-            id="goVisualizationDataUpload"
-            class="btn btn-info"
-            onclick="window.location.href='/upload_to_vis'"
+          <a
+            href="https://snap.stanford.edu/graphsage"
+            class="btn btn-link d-block mt-n2"
+            target="_blank"
+            >GraphSAGE Intro</a
           >
-            Go to Analyze
-          </button>
         </div>
-        <small class="goToAnalyze mt-n1 text-muted">Have files already?</small>
-      </form>
-      <small id="CopyRight" class="form-text text-muted text-center mt-4">
+        <div class="col text-center">
+          <a
+            href="{{ url_for('upload_user_data', eb_algorithm='node2vec') }}"
+            class="btn btn-secondary d-block"
+            >Try Node2Vec</a
+          >
+          <a
+            href="https://snap.stanford.edu/node2vec/"
+            class="btn btn-link d-block mt-n2"
+            target="_blank"
+            >Node2Vec Intro</a
+          >
+        </div>
+      </div>
+
+      <div class="text-center">
+        <a href="#" class="btn btn-danger">Exit the App</a>
+      </div>
+
+      <small id="CopyRight" class="form-text text-muted text-center">
         @CopyRight: Yang Li, Yucheng Wang, Chenfei Zhu, Northeastern University
       </small>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-    <script>
-      function validateFileType(inputField) {
-        const file = document.getElementById(inputField).files[0];
-        const validTypes = [
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          "text/csv",
-        ];
-        if (file && !validTypes.includes(file.type)) {
-          alert("Invalid file type. Please upload a .xlsx or .csv file.");
-          document.getElementById(inputField).value = ""; // Reset the input
-        }
-      }
-
-      function noneEdgeNotification() {
-        alert("Provide your edge may improve process efficiency and accuracy.");
-      }
-
-      function disableInputField(inputField) {
-        document.getElementById(inputField).classList.add("disabled-input");
-      }
-      function cancelUpload() {
-        document.getElementById("fileUploadForm").reset();
-        document
-          .getElementById("employeeFile")
-          .classList.remove("disabled-input");
-        document
-          .getElementById("relationshipFile")
-          .classList.remove("disabled-input");
-      }
-
-      function showLoading() {
-        document.getElementById("loadingArea").style.display = "block";
-      }
-
-      function uploadFile() {
-        showLoading();
-      }
-
-      document.getElementById("employeeFile").onchange = function () {
-        validateFileType("employeeFile");
-        disableInputField("employeeFile");
-      };
-      document.getElementById("relationshipFile").onchange = function () {
-        validateFileType("relationshipFile");
-        disableInputField("relationshipFile");
-      };
-
-      function updateUploadButtonState() {
-        const employeeFileInput = document.getElementById("employeeFile");
-        const relationshipFileInput =
-          document.getElementById("relationshipFile");
-        const confirmUploadBtn = document.getElementById("confirmUploadBtn");
-
-        // Check if any file is selected in either of the input fields
-        if (employeeFileInput.files.length > 0) {
-          confirmUploadBtn.disabled = false;
-        } else {
-          confirmUploadBtn.disabled = true;
-        }
-      }
-
-      document.getElementById("employeeFile").onchange = function () {
-        validateFileType("employeeFile");
-        updateUploadButtonState();
-      };
-      document.getElementById("relationshipFile").onchange = function () {
-        validateFileType("relationshipFile");
-        updateUploadButtonState();
-      };
-    </script>
   </body>
 </html>

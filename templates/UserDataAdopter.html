@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>user data upload</title>
+    <link
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@500&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
+      rel="stylesheet"
+    />
+    <link href="/static/styles.css" rel="stylesheet" />
+    <style>
+      body {
+        padding-top: 20px;
+        background-color: #f8f9fa;
+      }
+      .container {
+        max-width: 600px;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        background: rgba(255, 255, 255, 0.8);
+      }
+      h1,
+      h2,
+      h3 {
+        font-family: "Roboto", sans-serif;
+        color: #007bff;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        letter-spacing: 1.5px;
+        word-spacing: 3px;
+        text-align: center;
+      }
+      .required-icon {
+        color: red;
+        margin-left: 5px;
+      }
+      .custom-label-size {
+        font-size: 20px;
+      }
+      .progress,
+      .btn {
+        margin-top: 10px;
+        margin-bottom: 10px;
+      }
+      .form-control-file {
+        display: block;
+        width: 95%;
+        margin-left: 30%;
+      }
+      .disabled-input {
+        pointer-events: none;
+        opacity: 0.5;
+      }
+      .goToAnalyze {
+        display: flex;
+        justify-content: right;
+        margin-left: 35px;
+        margin-right: 35px;
+      }
+      .custom-button-size {
+        width: 30%;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Prepare data for {{ eb_algorithm }}</h1>
+      <form
+        id="fileUploadForm"
+        action="/user_upload"
+        method="post"
+        enctype="multipart/form-data"
+      >
+        <div class="form-group text-center">
+          <label for="participantFile" class="custom-label-size"
+            >1. Participant Document
+            <i class="fas fa-asterisk required-icon"></i
+          ></label>
+          <input
+            type="file"
+            class="form-control-file"
+            id="participantFile"
+            name="participantFile"
+            onchange="disableInputField('participantFile')"
+            required
+          />
+          <small id="eparticipantFileHelp" class="form-text text-muted"
+            ><p>
+              Please make sure your file contains column "<strong>id</strong>",
+              "<strong>name</strong>", and "<strong>department</strong>"
+            </p></small
+          >
+        </div>
+        <div class="form-group text-center">
+          <label for="relationshipFile" class="custom-label-size"
+            >2. Relationship File
+          </label>
+
+          <input
+            type="file"
+            class="form-control-file"
+            id="relationshipFile"
+            name="relationshipFile"
+            onchange="disableInputField('relationshipFile')"
+          />
+          <small id="relationshipFileHelp" class="form-text text-muted">
+            <p class="mt-n1">
+              Please make sure your file contains column
+              "<strong>source</strong>", "<strong>target</strong>",
+            </p>
+            <p class="mt-n3">
+              and "<strong>a number representing relationship</strong>"
+            </p></small
+          >
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %} {% if
+        messages %}
+        <script>
+          window.onload = function() {
+              {% for category, message in messages %}
+              alert("{{ message }}");
+              {% endfor %}
+          };
+        </script>
+        {% endif %} {% endwith %}
+
+        <div>
+          <div class="d-flex justify-content-around">
+            <button
+              type="submit"
+              class="btn btn-primary custom-button-size"
+              id="confirmUploadBtn"
+              onclick="confirmEdgeFile()"
+              disabled
+            >
+              Confirm Upload
+            </button>
+            <button
+              type="button"
+              class="btn btn-danger custom-button-size"
+              onclick="cancelUpload()"
+            >
+              Cancel Upload
+            </button>
+          </div>
+
+          <div class="d-flex justify-content-around">
+            <button
+              id="goHomePage"
+              class="btn btn-dark custom-button-size"
+              onclick="window.location.href='/'"
+            >
+              Go to Home Page
+            </button>
+            <button
+              id="goVisualizationDataUpload"
+              class="btn btn-info custom-button-size"
+              onclick="window.location.href='/upload_to_vis'"
+            >
+              Go to Analyze
+            </button>
+          </div>
+        </div>
+        <small class="goToAnalyze mt-n1 text-muted" style="width: 80%"
+          >Have files already?</small
+        >
+      </form>
+      <small id="CopyRight" class="form-text text-muted text-center mt-4">
+        @CopyRight: Yang Li, Yucheng Wang, Chenfei Zhu, Northeastern University
+      </small>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+      function validateFileType(inputField) {
+        const file = document.getElementById(inputField).files[0];
+        const validTypes = [
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "text/csv",
+        ];
+        if (file && !validTypes.includes(file.type)) {
+          alert("Invalid file type. Please upload a .xlsx or .csv file.");
+          document.getElementById(inputField).value = ""; // Reset the input
+        }
+      }
+      function disableInputField(inputField) {
+        document.getElementById(inputField).classList.add("disabled-input");
+      }
+      function cancelUpload() {
+        document.getElementById("fileUploadForm").reset();
+        document
+          .getElementById("participantFile")
+          .classList.remove("disabled-input");
+        document
+          .getElementById("relationshipFile")
+          .classList.remove("disabled-input");
+      }
+
+      document.getElementById("participantFile").onchange = function () {
+        validateFileType("participantFile");
+        disableInputField("participantFile");
+      };
+      document.getElementById("relationshipFile").onchange = function () {
+        validateFileType("relationshipFile");
+        disableInputField("relationshipFile");
+      };
+
+      function updateUploadButtonState() {
+        const participantFileInput = document.getElementById("participantFile");
+        const relationshipFileInput =
+          document.getElementById("relationshipFile");
+        const confirmUploadBtn = document.getElementById("confirmUploadBtn");
+
+        // Check if any file is selected in either of the input fields
+        if (participantFileInput.files.length > 0) {
+          confirmUploadBtn.disabled = false;
+        } else {
+          confirmUploadBtn.disabled = true;
+        }
+      }
+
+      document.getElementById("participantFile").onchange = function () {
+        validateFileType("participantFile");
+        updateUploadButtonState();
+      };
+      document.getElementById("relationshipFile").onchange = function () {
+        validateFileType("relationshipFile");
+        updateUploadButtonState();
+      };
+
+      window.onload = function () {
+        var isUploadValid =
+          document.getElementById("uploadCheck").dataset.isUploadValid;
+        if (isUploadValid === "False") {
+          alert("Upload failed. Please try again.");
+        }
+      };
+    </script>
+  </body>
+</html>
