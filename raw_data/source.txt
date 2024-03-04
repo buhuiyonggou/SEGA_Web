@@ -1,4 +1,0 @@
-1. https://www.kaggle.com/datasets/rhuebner/human-resources-data-set
-2. https://www.kaggle.com/datasets/davidepolizzi/hr-data-set-based-on-human-resources-data-set
-3. https://www.kaggle.com/datasets/luckyrao/human-resource-dataset
-4. https://www.kaggle.com/datasets/vinaypratap/human-resource

@@ -28,8 +28,7 @@ def allowed_file(filename):
     """Check if the uploaded file has an allowed extension."""
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-
+        
 # Convert adjacency matrix to edge list
 def adjacency_to_edgelist(adj_matrix_df):
     edges = []
@@ -88,12 +87,17 @@ def get_data_with_weight(processor, feature_index, edge_index, index_to_name_map
         
 @app.route('/')
 def home():
-    return render_template('Home.ejs')
+    return render_template('Home.html')
+
+@app.route('/user_data_adoper', methods=['GET'])
+def upload_user_data():
+    eb_algorithm = request.args.get('eb_algorithm', 'graphSAGE') 
+    return render_template('UserDataAdopter.html', eb_algorithm=eb_algorithm)
 
 @app.route('/user_upload', methods=['GET', 'POST'])
-def upload_user_data():
+def upload_data_store():
     if request.method == 'POST':
-        node_file = request.files.get('employeeFile')
+        node_file = request.files.get('participantFile')
         if node_file and allowed_file(node_file.filename):
             node_filename = secure_filename(node_file.filename)
             
@@ -114,10 +118,14 @@ def upload_user_data():
 
 @app.route('/confirm_edge_upload')
 def confirm_edge_upload():
-    if 'node_filepath' in session and 'edge_filepath' not in session:
-        return render_template('confirm_edge_upload.html', delay_redirect=True) 
+    if 'node_filepath' not in session:
+        flash('No participant file detected. Please upload the required files.', 'error')
+        return redirect(url_for('upload_user_data'))
+    elif 'node_filepath' in session and 'edge_filepath' not in session:
+        flash('No edge file detected. Proceeding with inferred graph. You can upload an edge file to improve model accuracy.', 'warning')
     else:
-        return redirect(url_for('data_process'))
+        flash('Files successfully uploaded.', 'success')
+    return render_template('dataProcess.html', edge_file_provided='edge_filepath' in session)
 
 @app.route('/data_process')
 def data_process():

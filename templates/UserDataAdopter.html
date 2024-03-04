@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Upload your file for <% eb_algorithm %></title>
+    <title>user data upload</title>
     <link
       href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
       rel="stylesheet"
@@ -43,12 +43,18 @@
         color: red;
         margin-left: 5px;
       }
-      .legend,
+      .custom-label-size {
+        font-size: 20px;
+      }
       .progress,
-      .btn,
-      .form-control-file {
+      .btn {
         margin-top: 10px;
         margin-bottom: 10px;
+      }
+      .form-control-file {
+        display: block;
+        width: 95%;
+        margin-left: 30%;
       }
       .disabled-input {
         pointer-events: none;
@@ -60,11 +66,14 @@
         margin-left: 35px;
         margin-right: 35px;
       }
+      .custom-button-size {
+        width: 30%;
+      }
     </style>
   </head>
   <body>
     <div class="container">
-      <h1>Welcome to GraphSAGE</h1>
+      <h1>Prepare data for {{ eb_algorithm }}</h1>
       <form
         id="fileUploadForm"
         action="/user_upload"
@@ -72,19 +81,19 @@
         enctype="multipart/form-data"
       >
         <div class="form-group text-center">
+          <label for="participantFile" class="custom-label-size"
+            >1. Participant Document
+            <i class="fas fa-asterisk required-icon"></i
+          ></label>
           <input
             type="file"
             class="form-control-file"
-            style="margin-top: 20px; margin-left: 30%"
-            id="employeeFile"
-            name="employeeFile"
-            onchange="disableInputField('employeeFile')"
+            id="participantFile"
+            name="participantFile"
+            onchange="disableInputField('participantFile')"
             required
           />
-          <label for="employeeFile"
-            >Employee Document <i class="fas fa-asterisk required-icon"></i
-          ></label>
-          <small id="employeeFileHelp" class="form-text text-muted mt-n1"
+          <small id="eparticipantFileHelp" class="form-text text-muted"
             ><p>
               Please make sure your file contains column "<strong>id</strong>",
               "<strong>name</strong>", and "<strong>department</strong>"
@@ -92,16 +101,18 @@
           >
         </div>
         <div class="form-group text-center">
+          <label for="relationshipFile" class="custom-label-size"
+            >2. Relationship File
+          </label>
+
           <input
             type="file"
             class="form-control-file"
-            style="margin-top: 20px; marign-bottom: 30px; margin-left: 30%"
             id="relationshipFile"
             name="relationshipFile"
             onchange="disableInputField('relationshipFile')"
           />
-          <label for="relationshipFile">Relationship File </label>
-          <small id="relationshipFileHelp" class="text-muted">
+          <small id="relationshipFileHelp" class="form-text text-muted">
             <p class="mt-n1">
               Please make sure your file contains column
               "<strong>source</strong>", "<strong>target</strong>",
@@ -111,43 +122,62 @@
             </p></small
           >
         </div>
-        <div id="loadingArea" style="display: none" class="text-center">
-          <div class="progress">
-            <div
-              class="progress-bar progress-bar-striped progress-bar-animated"
-              role="progressbar"
-              style="width: 100%"
-              aria-valuenow="100"
-              aria-valuemin="0"
-              aria-valuemax="100"
-            ></div>
-          </div>
-          <p>Uploading...</p>
-        </div>
 
-        <div class="d-flex justify-content-around flex-wrap">
-          <button
-            type="submit"
-            class="btn btn-primary"
-            id="confirmUploadBtn"
-            onclick="uploadFile()"
-            disabled
-          >
-            Confirm Upload
-          </button>
-          <button type="button" class="btn btn-danger" onclick="cancelUpload()">
-            Cancel Upload
-          </button>
-          <button
-            id="goVisualizationDataUpload"
-            class="btn btn-info"
-            onclick="window.location.href='/upload_to_vis'"
-          >
-            Go to Analyze
-          </button>
+        {% with messages = get_flashed_messages(with_categories=true) %} {% if
+        messages %}
+        <script>
+          window.onload = function() {
+              {% for category, message in messages %}
+              alert("{{ message }}");
+              {% endfor %}
+          };
+        </script>
+        {% endif %} {% endwith %}
+
+        <div>
+          <div class="d-flex justify-content-around">
+            <button
+              type="submit"
+              class="btn btn-primary custom-button-size"
+              id="confirmUploadBtn"
+              onclick="confirmEdgeFile()"
+              disabled
+            >
+              Confirm Upload
+            </button>
+            <button
+              type="button"
+              class="btn btn-danger custom-button-size"
+              onclick="cancelUpload()"
+            >
+              Cancel Upload
+            </button>
+          </div>
+
+          <div class="d-flex justify-content-around">
+            <button
+              id="goHomePage"
+              class="btn btn-dark custom-button-size"
+              onclick="window.location.href='/'"
+            >
+              Go to Home Page
+            </button>
+            <button
+              id="goVisualizationDataUpload"
+              class="btn btn-info custom-button-size"
+              onclick="window.location.href='/upload_to_vis'"
+            >
+              Go to Analyze
+            </button>
+          </div>
         </div>
-        <small class="goToAnalyze mt-n1 text-muted">Have files already?</small>
+        <small class="goToAnalyze mt-n1 text-muted" style="width: 80%"
+          >Have files already?</small
+        >
       </form>
+      <small id="CopyRight" class="form-text text-muted text-center mt-4">
+        @CopyRight: Yang Li, Yucheng Wang, Chenfei Zhu, Northeastern University
+      </small>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
@@ -164,35 +194,22 @@
           document.getElementById(inputField).value = ""; // Reset the input
         }
       }
-
-      function noneEdgeNotification() {
-        alert("Provide your edge may improve process efficiency and accuracy.");
-      }
-
       function disableInputField(inputField) {
         document.getElementById(inputField).classList.add("disabled-input");
       }
       function cancelUpload() {
         document.getElementById("fileUploadForm").reset();
         document
-          .getElementById("employeeFile")
+          .getElementById("participantFile")
           .classList.remove("disabled-input");
         document
           .getElementById("relationshipFile")
           .classList.remove("disabled-input");
       }
 
-      function showLoading() {
-        document.getElementById("loadingArea").style.display = "block";
-      }
-
-      function uploadFile() {
-        showLoading();
-      }
-
-      document.getElementById("employeeFile").onchange = function () {
-        validateFileType("employeeFile");
-        disableInputField("employeeFile");
+      document.getElementById("participantFile").onchange = function () {
+        validateFileType("participantFile");
+        disableInputField("participantFile");
       };
       document.getElementById("relationshipFile").onchange = function () {
         validateFileType("relationshipFile");
@@ -200,26 +217,34 @@
       };
 
       function updateUploadButtonState() {
-        const employeeFileInput = document.getElementById("employeeFile");
+        const participantFileInput = document.getElementById("participantFile");
         const relationshipFileInput =
           document.getElementById("relationshipFile");
         const confirmUploadBtn = document.getElementById("confirmUploadBtn");
 
         // Check if any file is selected in either of the input fields
-        if (employeeFileInput.files.length > 0) {
+        if (participantFileInput.files.length > 0) {
           confirmUploadBtn.disabled = false;
         } else {
           confirmUploadBtn.disabled = true;
         }
       }
 
-      document.getElementById("employeeFile").onchange = function () {
-        validateFileType("employeeFile");
+      document.getElementById("participantFile").onchange = function () {
+        validateFileType("participantFile");
         updateUploadButtonState();
       };
       document.getElementById("relationshipFile").onchange = function () {
         validateFileType("relationshipFile");
         updateUploadButtonState();
+      };
+
+      window.onload = function () {
+        var isUploadValid =
+          document.getElementById("uploadCheck").dataset.isUploadValid;
+        if (isUploadValid === "False") {
+          alert("Upload failed. Please try again.");
+        }
       };
     </script>
   </body>
