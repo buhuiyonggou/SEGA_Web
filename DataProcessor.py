@@ -2,53 +2,11 @@ import pandas as pd
 import numpy as np
 from itertools import combinations
 import torch
-from flask import session
-from torch_geometric.data import Data
-import torch.nn.functional as F
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import MinMaxScaler
-from graphSAGE import GraphSAGE
-from torch_geometric.nn import Node2Vec as PyGNode2Vec
 import logging
 
-
-class Node2VecProcessor(torch.nn.Module):
-    def __init__(self, num_nodes, embedding_dim, walk_length, context_size, walks_per_node, p, q):
-        super(Node2VecProcessor, self).__init__()
-        self.node2vec = PyGNode2Vec(
-            num_nodes, embedding_dim, walk_length, context_size, walks_per_node, p, q)
-
-    def forward(self, edge_index):
-        return self.node2vec(edge_index)
-
-    def train_model(self, edge_index, num_epochs):
-        self.train()
-        optimizer = torch.optim.Adam(self.parameters())
-        for epoch in range(num_epochs):
-            optimizer.zero_grad()
-            loss = self.node2vec.loss(edge_index)
-            loss.backward()
-            optimizer.step()
-            print(f'Epoch {epoch}, Loss: {loss.item()}')
-        return self.node2vec.embedding.weight.data
-
-    def process_data_for_node2vec(self, hr_data, edge_filepath):
-        # Apply similar preprocessing as in GraphSAGEProcessor
-        hr_data = self.rename_columns_to_standard(
-            hr_data, self.COLUMN_ALIGNMENT)
-        index_to_name_mapping = self.create_index_id_name_mapping(hr_data)
-
-        # Generate features and edges similar to GraphSAGE
-        features = self.features_generator(hr_data, self.NODE_FEATURES)
-        feature_index = self.feature_index_generator(features)
-        edges = self.edges_generator(hr_data, edge_filepath)
-        edge_index = self.edge_index_generator(edges)
-
-        return feature_index, edge_index, index_to_name_mapping
-
-
-class GraphSAGEProcessor:
+class DataProcessor:
     def __init__(self, nodes_folder, edges_folder=None):
         self.nodes_folder = nodes_folder
         self.edges_folder = edges_folder
@@ -244,83 +202,4 @@ class GraphSAGEProcessor:
                 f"NaN values detected in columns: {', '.join(nan_columns)}")
         return "No NaN values detected."
 
-    def contrastive_loss(self, out, edge_index, num_neg_samples=None):
-        # Positive samples: directly connected nodes
-        pos_loss = F.pairwise_distance(
-            out[edge_index[0]], out[edge_index[1]]).pow(2).mean()
-
-        # Negative sampling: randomly select pairs of nodes that are not directly connected
-        num_nodes = out.size(0)
-        # Default to the same number of negative samples as positive
-        num_neg_samples = num_neg_samples or edge_index.size(1)
-        neg_edge_index = torch.randint(
-            0, num_nodes, (2, num_neg_samples), dtype=torch.long, device=out.device)
-
-        # Compute loss for negative samples
-        neg_loss = F.relu(
-            1 - F.pairwise_distance(out[neg_edge_index[0]], out[neg_edge_index[1]])).pow(2).mean()
-
-        # Combine positive and negative loss
-        loss = pos_loss + neg_loss
-        return loss
-
-    def model_training(self, feature_index, edge_index):
-        # Initialize the GraphSAGE model
-        model = GraphSAGE(
-            in_channels=feature_index.shape[1], hidden_channels=16, out_channels=8)
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-
-        data = Data(x=feature_index, edge_index=edge_index)
-
-        # Training loop
-        for epoch in range(self.epoches):  # Adjust the number of epochs as needed
-            model.train()
-            optimizer.zero_grad()
-            out = model(data.x, data.edge_index)
-
-            # Use the contrastive loss function here
-            loss = self.contrastive_loss(out, data.edge_index)
-
-            loss.backward()
-            optimizer.step()
-
-            # if epoch == self.epochs - 1:  # Check if it's the last epoch
-            #     session['training_progress'] = "complete"
-            # else:
-            #     session['training_progress'] = f"Epoch {epoch + 1}/{self.epochs}"
-            # session.modified = True
-
-        # Generate embeddings for nodes without gradient calculations
-        model.eval()  # Switch to evaluation mode
-        with torch.no_grad():
-            embeddings = model(data.x, data.edge_index)
-
-            new_weights = torch.norm(
-                embeddings[data.edge_index[0]] - embeddings[data.edge_index[1]], dim=1)
-
-        # Initialize the scaler
-        scaler = MinMaxScaler()
-
-        # Reshape new_weights for scaling - sklearn's MinMaxScaler expects a 2D array
-        weights_reshaped = new_weights.numpy().reshape(-1, 1)
-
-        # Apply the scaler to the weights
-        scaled_weights = scaler.fit_transform(weights_reshaped).flatten()
-
-        return scaled_weights
-
-    def data_reshape(self, scaled_weights, edge_index, index_to_name_mapping):
-        # Create a DataFrame to export
-        edges_with_weights = pd.DataFrame(
-            edge_index.t().numpy(), columns=['source', 'target'])
-
-        # Update the DataFrame with scaled weights
-        edges_with_weights['weight'] = scaled_weights
-
-        # Use id to map names
-        edges_with_weights['source'] = edges_with_weights['source'].apply(
-            lambda x: index_to_name_mapping.loc[x, 'name'])
-        edges_with_weights['target'] = edges_with_weights['target'].apply(
-            lambda x: index_to_name_mapping.loc[x, 'name'])
-
-        return edges_with_weights
+    
