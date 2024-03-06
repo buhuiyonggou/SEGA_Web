@@ -76,15 +76,15 @@ class GraphSAGE(torch.nn.Module):
     def data_reshape(self, scaled_weights, edge_index, index_to_name_mapping):
         # Create a DataFrame to export
         edges_with_weights = pd.DataFrame(
-            edge_index.t().numpy(), columns=['source', 'target'])
+            edge_index.t().numpy(), columns=['Source', 'Target'])
 
         # Update the DataFrame with scaled weights
-        edges_with_weights['weight'] = scaled_weights
+        edges_with_weights['Weight'] = scaled_weights
 
         # Use id to map names
-        edges_with_weights['source'] = edges_with_weights['source'].apply(
+        edges_with_weights['Source'] = edges_with_weights['Source'].apply(
             lambda x: index_to_name_mapping.loc[x, 'name'])
-        edges_with_weights['target'] = edges_with_weights['target'].apply(
+        edges_with_weights['Target'] = edges_with_weights['Target'].apply(
             lambda x: index_to_name_mapping.loc[x, 'name'])
 
         return edges_with_weights
