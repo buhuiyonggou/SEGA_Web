@@ -10,7 +10,7 @@ class DataProcessor:
     def __init__(self, nodes_folder, edges_folder=None):
         self.nodes_folder = nodes_folder
         self.edges_folder = edges_folder
-
+        
         self.CONNECT_AMONG_SUB_DEPART = 0.25
         self.CONNECT_AMONG_DEPARTMENT = 0.05
         self.CONNECT_AMONG_ORGANIZATION = 0.01
