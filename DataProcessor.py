@@ -9,28 +9,67 @@ from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import MinMaxScaler
 from graphSAGE import GraphSAGE
+from torch_geometric.nn import Node2Vec as PyGNode2Vec
+import logging
+
+
+class Node2VecProcessor(torch.nn.Module):
+    def __init__(self, num_nodes, embedding_dim, walk_length, context_size, walks_per_node, p, q):
+        super(Node2VecProcessor, self).__init__()
+        self.node2vec = PyGNode2Vec(
+            num_nodes, embedding_dim, walk_length, context_size, walks_per_node, p, q)
+
+    def forward(self, edge_index):
+        return self.node2vec(edge_index)
+
+    def train_model(self, edge_index, num_epochs):
+        self.train()
+        optimizer = torch.optim.Adam(self.parameters())
+        for epoch in range(num_epochs):
+            optimizer.zero_grad()
+            loss = self.node2vec.loss(edge_index)
+            loss.backward()
+            optimizer.step()
+            print(f'Epoch {epoch}, Loss: {loss.item()}')
+        return self.node2vec.embedding.weight.data
+
+    def process_data_for_node2vec(self, hr_data, edge_filepath):
+        # Apply similar preprocessing as in GraphSAGEProcessor
+        hr_data = self.rename_columns_to_standard(
+            hr_data, self.COLUMN_ALIGNMENT)
+        index_to_name_mapping = self.create_index_id_name_mapping(hr_data)
+
+        # Generate features and edges similar to GraphSAGE
+        features = self.features_generator(hr_data, self.NODE_FEATURES)
+        feature_index = self.feature_index_generator(features)
+        edges = self.edges_generator(hr_data, edge_filepath)
+        edge_index = self.edge_index_generator(edges)
+
+        return feature_index, edge_index, index_to_name_mapping
+
 
 class GraphSAGEProcessor:
-    def __init__(self, nodes_folder, edges_folder = None):
+    def __init__(self, nodes_folder, edges_folder=None):
         self.nodes_folder = nodes_folder
         self.edges_folder = edges_folder
-        
+
         self.CONNECT_AMONG_SUB_DEPART = 0.25
         self.CONNECT_AMONG_DEPARTMENT = 0.05
-        self.CONNECT_AMONG_ORGANIZATION= 0.01
+        self.CONNECT_AMONG_ORGANIZATION = 0.01
         self.COLUMN_ALIGNMENT = {
-            'id':['id','emp_id', 'employeeid'],
+            'id': ['id', 'emp_id', 'employeeid'],
             'name': ['name', 'full_name', "employee_name", 'first_name'],
             'department': ['department', 'depart', 'sector'],
-            'sub-depart':['sub-depart', 'sub-department', 'sub-sector','second-department'],
-            'manager': ['manager', 'supervisor', 'manager_name','managername']
+            'sub-depart': ['sub-depart', 'sub-department', 'sub-sector', 'second-department'],
+            'manager': ['manager', 'supervisor', 'manager_name', 'managername']
         }
         self.NODE_FEATURES = []
         self.epoches = 200
 
     def load_data(self, file_path):
         if file_path.endswith('.csv'):
-            df = pd.read_csv(file_path, encoding='utf-8')  # Handles BOM if present
+            # Handles BOM if present
+            df = pd.read_csv(file_path, encoding='utf-8')
         elif file_path.endswith('.xlsx'):
             df = pd.read_excel(file_path)
         else:
@@ -41,31 +80,67 @@ class GraphSAGEProcessor:
 
     def fetch_data_from_user(self, file_path):
         if file_path is None:
-            return
-        hr_data = self.load_data(file_path)
-        hr_data.fillna("Missing", inplace=True)
-        
-        return hr_data
+            raise ValueError("File path is None")
 
-    # Function to rename columns based on expected variations
-    def rename_columns_to_standard(self, df, column_alignment):
+        if file_path.endswith('.csv'):
+            df = pd.read_csv(file_path, encoding='utf-8')
+        elif file_path.endswith('.xlsx'):
+            df = pd.read_excel(file_path)
+        else:
+            raise ValueError("Unsupported file format")
+
+        df.columns = df.columns.str.lower()
+        df.fillna("Missing", inplace=True)  # Handle missing values
+
+        if not isinstance(df, pd.DataFrame):
+            raise ValueError("Loaded data is not a DataFrame")
+
+        return df
+
+    def rename_columns_to_standard_1(self, df, column_alignment):
         renamed_columns = df.columns.tolist()  # Start with the original column names
         for standard_name, variations in column_alignment.items():
             for variation in variations:
-                # Find which variation is in the DataFrame columns (case-insensitive match)
-                found_columns = [col for col in df.columns if col.lower() == variation.lower()]
+                found_columns = [
+                    col for col in df.columns if col.lower() == variation.lower()]
                 if found_columns:
-                    # Assume only one match is found; rename it to the standard name
                     index_of_found = renamed_columns.index(found_columns[0])
                     renamed_columns[index_of_found] = standard_name
                     break  # Stop looking for other variations if one is found
+        if not isinstance(renamed_columns, pd.DataFrame):
+            logging.error(
+                "rename_columns_to_standard is not returning a DataFrame")
         return renamed_columns
 
+    # Function to rename columns based on expected variations
+    def rename_columns_to_standard_2(self, df, column_alignment):
+        # Dictionary to hold new column names
+        new_column_names = {}
+
+        for standard_name, variations in column_alignment.items():
+            for variation in variations:
+                if variation in df.columns:
+                    new_column_names[variation] = standard_name
+                    break  # once a variation is found, break out of the loop
+
+        # Apply the renaming
+        df.rename(columns=new_column_names, inplace=True)
+
+        # Handle missing values
+        for col in df.columns:
+            if df[col].dtype == 'object':  # For non-numeric columns
+                df[col] = df[col].fillna('Missing')
+            else:  # For numeric columns
+                df[col] = df[col].fillna(df[col].mean())
+
+        return df
+
     def create_index_id_name_mapping(self, hr_data):
+
         index_to_id_name_mapping = [{
             'index': i,
             'id': row['id'],
-            'name': row['name'].title()
+            'name': row['name'].title() if 'name' in row else 'Unknown'
         } for i, row in hr_data.iterrows()]
 
         mapping_df = pd.DataFrame(index_to_id_name_mapping)
@@ -75,13 +150,15 @@ class GraphSAGEProcessor:
         # Initialize LabelEncoder and MinMaxScaler
         le = LabelEncoder()
         scaler = MinMaxScaler()
-        imputer = SimpleImputer(strategy='mean')  
+        imputer = SimpleImputer(strategy='mean')
         for column in node_features:
             if df[column].dtype == 'object':
-                df[column] = le.fit_transform(df[column].astype(str))  # Convert categorical data to numerical
+                # Convert categorical data to numerical
+                df[column] = le.fit_transform(df[column].astype(str))
             else:
                 # Reshape the column data to a 2D array for imputer and scaler
-                column_data_reshaped = df[column].values.reshape(-1, 1)  # Reshape data
+                # Reshape data
+                column_data_reshaped = df[column].values.reshape(-1, 1)
                 # Apply imputer to the reshaped data
                 imputed_data = imputer.fit_transform(column_data_reshaped)
                 # Apply scaler to the imputed and reshaped data
@@ -106,9 +183,9 @@ class GraphSAGEProcessor:
                     if np.random.rand() < self.CONNECT_AMONG_DEPARTMENT:
                         edges.append([i, j])
 
-
     # if edges are given by user, relationship_data is not None, mapping current users to edges
-    def edges_generator(self, hr_data, edge_filepath = None):
+
+    def edges_generator(self, hr_data, edge_filepath=None):
         edges = []
         mapping_df = self.create_index_id_name_mapping(hr_data)
 
@@ -118,67 +195,79 @@ class GraphSAGEProcessor:
             for _, row in hr_edge.iterrows():
                 source_id = row['source']
                 target_id = row['target']
-                source_index = mapping_df[mapping_df['id'] == source_id].index.item()
-                target_index = mapping_df[mapping_df['id'] == target_id].index.item()
+                source_index = mapping_df[mapping_df['id']
+                                          == source_id].index.item()
+                target_index = mapping_df[mapping_df['id']
+                                          == target_id].index.item()
 
                 edges.append([source_index, target_index])
         else:
             # if edges are not given, infer the edges
             if 'sub-depart' in hr_data.columns and hr_data['sub-depart'].notnull().any():
                 for dept in hr_data['sub-depart'].unique():
-                    dept_indices = hr_data[hr_data['sub-depart'] == dept].index.tolist()
-                    self.manage_edge_probability(edges, hr_data,dept_indices, sub_dept_info=True)
+                    dept_indices = hr_data[hr_data['sub-depart']
+                                           == dept].index.tolist()
+                    self.manage_edge_probability(
+                        edges, hr_data, dept_indices, sub_dept_info=True)
             else:
                 for dept in hr_data['department'].unique():
-                    dept_indices = hr_data[hr_data['department'] == dept].index.tolist()
-                    self.manage_edge_probability(edges, hr_data, dept_indices, sub_dept_info=False)
+                    dept_indices = hr_data[hr_data['department']
+                                           == dept].index.tolist()
+                    self.manage_edge_probability(
+                        edges, hr_data, dept_indices, sub_dept_info=False)
         return edges
 
-    def edge_index_generator(self,edges):
+    def edge_index_generator(self, edges):
         edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
         return edge_index
 
     def features_generator(self, hr_data, node_features):
         hr_data_parsed = self.preprocess_data(hr_data, node_features)
         # Exclude 'id' and 'name' columns from features
-        feature_columns = [col for col in hr_data.columns if col in node_features]
-        
+        feature_columns = [
+            col for col in hr_data.columns if col in node_features]
+
         features_data = hr_data_parsed[feature_columns].values
-        
+
         return features_data
 
     def feature_index_generator(self, features):
         feature_index = torch.tensor(features, dtype=torch.float)
-        
+
         return feature_index
 
     def nanCheck(self, hr_data, feature_index):
         # Check for NaN values in features
         if torch.isnan(feature_index).any():
-           nan_columns = hr_data.columns[hr_data.isnull().any()].tolist()
-           raise ValueError(f"NaN values detected in columns: {', '.join(nan_columns)}")
+            nan_columns = hr_data.columns[hr_data.isnull().any()].tolist()
+            raise ValueError(
+                f"NaN values detected in columns: {', '.join(nan_columns)}")
         return "No NaN values detected."
 
     def contrastive_loss(self, out, edge_index, num_neg_samples=None):
         # Positive samples: directly connected nodes
-        pos_loss = F.pairwise_distance(out[edge_index[0]], out[edge_index[1]]).pow(2).mean()
+        pos_loss = F.pairwise_distance(
+            out[edge_index[0]], out[edge_index[1]]).pow(2).mean()
 
         # Negative sampling: randomly select pairs of nodes that are not directly connected
         num_nodes = out.size(0)
-        num_neg_samples = num_neg_samples or edge_index.size(1)  # Default to the same number of negative samples as positive
-        neg_edge_index = torch.randint(0, num_nodes, (2, num_neg_samples), dtype=torch.long, device=out.device)
+        # Default to the same number of negative samples as positive
+        num_neg_samples = num_neg_samples or edge_index.size(1)
+        neg_edge_index = torch.randint(
+            0, num_nodes, (2, num_neg_samples), dtype=torch.long, device=out.device)
 
         # Compute loss for negative samples
-        neg_loss = F.relu(1 - F.pairwise_distance(out[neg_edge_index[0]], out[neg_edge_index[1]])).pow(2).mean()
+        neg_loss = F.relu(
+            1 - F.pairwise_distance(out[neg_edge_index[0]], out[neg_edge_index[1]])).pow(2).mean()
 
         # Combine positive and negative loss
         loss = pos_loss + neg_loss
         return loss
-    
-    
+
     def model_training(self, feature_index, edge_index):
         # Initialize the GraphSAGE model
-        model = GraphSAGE(in_channels=feature_index.shape[1], hidden_channels=16, out_channels=8)
+        model = GraphSAGE(
+            in_channels=feature_index.shape[1], hidden_channels=16, out_channels=8)
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 
         data = Data(x=feature_index, edge_index=edge_index)
@@ -188,10 +277,10 @@ class GraphSAGEProcessor:
             model.train()
             optimizer.zero_grad()
             out = model(data.x, data.edge_index)
-            
+
             # Use the contrastive loss function here
             loss = self.contrastive_loss(out, data.edge_index)
-            
+
             loss.backward()
             optimizer.step()
 
@@ -206,7 +295,8 @@ class GraphSAGEProcessor:
         with torch.no_grad():
             embeddings = model(data.x, data.edge_index)
 
-            new_weights = torch.norm(embeddings[data.edge_index[0]] - embeddings[data.edge_index[1]], dim=1)
+            new_weights = torch.norm(
+                embeddings[data.edge_index[0]] - embeddings[data.edge_index[1]], dim=1)
 
         # Initialize the scaler
         scaler = MinMaxScaler()
@@ -216,18 +306,21 @@ class GraphSAGEProcessor:
 
         # Apply the scaler to the weights
         scaled_weights = scaler.fit_transform(weights_reshaped).flatten()
-        
+
         return scaled_weights
 
-    def data_reshape(self, scaled_weights,edge_index, index_to_name_mapping):
+    def data_reshape(self, scaled_weights, edge_index, index_to_name_mapping):
         # Create a DataFrame to export
-        edges_with_weights = pd.DataFrame(edge_index.t().numpy(), columns=['source', 'target'])
+        edges_with_weights = pd.DataFrame(
+            edge_index.t().numpy(), columns=['source', 'target'])
 
         # Update the DataFrame with scaled weights
         edges_with_weights['weight'] = scaled_weights
 
         # Use id to map names
-        edges_with_weights['source'] = edges_with_weights['source'].apply(lambda x: index_to_name_mapping.loc[x, 'name'])
-        edges_with_weights['target'] = edges_with_weights['target'].apply(lambda x: index_to_name_mapping.loc[x, 'name'])
+        edges_with_weights['source'] = edges_with_weights['source'].apply(
+            lambda x: index_to_name_mapping.loc[x, 'name'])
+        edges_with_weights['target'] = edges_with_weights['target'].apply(
+            lambda x: index_to_name_mapping.loc[x, 'name'])
 
         return edges_with_weights

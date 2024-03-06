@@ -11,7 +11,8 @@ from pyecharts.globals import ThemeType
 from scipy.spatial.distance import squareform
 from scipy.cluster.hierarchy import dendrogram, linkage, to_tree
 import json
-from DataProcessor import GraphSAGEProcessor
+from DataProcessor import Node2VecProcessor, GraphSAGEProcessor
+import logging
 
 app = Flask(__name__)
 
@@ -22,14 +23,18 @@ ALLOWED_EXTENSIONS = {'csv', 'xlsx'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['RAW_DATA_FOLDER'] = RAW_DATA_FOLDER
 app.secret_key = 'BabaYaga'
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 def allowed_file(filename):
     """Check if the uploaded file has an allowed extension."""
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-        
+
 # Convert adjacency matrix to edge list
+
+
 def adjacency_to_edgelist(adj_matrix_df):
     edges = []
     for i, row in adj_matrix_df.iterrows():
@@ -52,7 +57,8 @@ def load_graph_data(filepath, file_extension):
 
         # Check if required columns are present
         if not {'Source', 'Target', 'Weight'}.issubset(df.columns):
-            raise ValueError("Dataframe must contain 'Source', 'Target', and 'Weight' columns.")
+            raise ValueError(
+                "Dataframe must contain 'Source', 'Target', and 'Weight' columns.")
 
         # Sort by 'Weight' in descending order and select top 5000 rows
         # df = df.sort_values(by='Weight', ascending=False).head(3000)
@@ -68,31 +74,36 @@ def load_graph_data(filepath, file_extension):
         flash(str(e))  # Display the error message to the user
         return None, None  # Return None values to indicate failure
 
+
 def get_data_with_weight(processor, feature_index, edge_index, index_to_name_mapping):
-    
+
     scaled_weights = processor.model_training(feature_index, edge_index)
-    
+
     # if scaled_weights.size > 0:
-    edges_with_weights = processor.data_reshape(scaled_weights, edge_index, index_to_name_mapping)
-    
+    edges_with_weights = processor.data_reshape(
+        scaled_weights, edge_index, index_to_name_mapping)
+
     # Save the DataFrame to a CSV file
-    try: 
+    try:
         output_path = UPLOAD_FOLDER + '/weighted_graph.csv'
         edges_with_weights.to_csv(output_path, index=False)
         message = "Process Status: Congragulations! You data has successfully processed."
     except Exception as message:
         flash(f'Error: {str(message)}')
     finally:
-        flash(message) 
-        
+        flash(message)
+
+
 @app.route('/')
 def home():
     return render_template('Home.html')
 
+
 @app.route('/user_data_adoper', methods=['GET'])
 def upload_user_data():
-    eb_algorithm = request.args.get('eb_algorithm', 'graphSAGE') 
+    eb_algorithm = request.args.get('eb_algorithm', 'graphSAGE')
     return render_template('UserDataAdopter.html', eb_algorithm=eb_algorithm)
+
 
 @app.route('/user_upload', methods=['GET', 'POST'])
 def upload_data_store():
@@ -100,22 +111,25 @@ def upload_data_store():
         node_file = request.files.get('participantFile')
         if node_file and allowed_file(node_file.filename):
             node_filename = secure_filename(node_file.filename)
-            
+
         edge_file = request.files.get('relationshipFile')
         if edge_file and allowed_file(edge_file.filename):
             edge_filename = secure_filename(edge_file.filename)
-            
+
         # Save files and process
         if node_file:
-            session['node_filepath'] = os.path.join(app.config['RAW_DATA_FOLDER'], secure_filename(node_file.filename))
+            session['node_filepath'] = os.path.join(
+                app.config['RAW_DATA_FOLDER'], secure_filename(node_file.filename))
             node_file.save(session['node_filepath'])
             session['upload_success'] = True
         if edge_file:
-            session['edge_filepath'] = os.path.join(app.config['RAW_DATA_FOLDER'], secure_filename(edge_file.filename))
+            session['edge_filepath'] = os.path.join(
+                app.config['RAW_DATA_FOLDER'], secure_filename(edge_file.filename))
             edge_file.save(session['edge_filepath'])
         session['process_success'] = False
-        
+
         return redirect(url_for('confirm_edge_upload'))
+
 
 @app.route('/confirm_edge_upload')
 def confirm_edge_upload():
@@ -128,6 +142,7 @@ def confirm_edge_upload():
         flash('Files successfully uploaded.', 'success')
     return render_template('dataProcess.html', edge_file_provided='edge_filepath' in session)
 
+
 @app.route('/process_graphsage')
 def data_process():
     try:
@@ -139,40 +154,48 @@ def data_process():
         else:
             flash("Upload Status: Sorry, there is something wrong with uploading...")
 
-        processor = GraphSAGEProcessor(node_filepath, edge_filepath if edge_filepath else None)
-            
+        processor = GraphSAGEProcessor(
+            node_filepath, edge_filepath if edge_filepath else None)
+
         hr_data = processor.fetch_data_from_user(node_filepath)
-            
+
         if hr_data.empty:
             flash("Sorry, document data cannot be found.")
-        
+
         # process features
-        hr_data.columns = processor.rename_columns_to_standard(hr_data, processor.COLUMN_ALIGNMENT)
-        
+        hr_data.columns = processor.rename_columns_to_standard_1(
+            hr_data, processor.COLUMN_ALIGNMENT)
+
+        if 'id' not in hr_data.columns:
+            logging.error("The 'id' column is missing in hr_data")
+            flash("The 'id' column is missing in hr_data", "error")
+
         # store index map
         index_to_name_mapping = processor.create_index_id_name_mapping(hr_data)
-        
-        # align name of columns 
+
+        # align name of columns
         # target embedding attributes for this instance, used for creating node_index
         columns_to_exclude = ['id', 'name']
-        node_features = [col for col in hr_data.columns if col not in columns_to_exclude]
-        
+        node_features = [
+            col for col in hr_data.columns if col not in columns_to_exclude]
+
         # get features with number
         features = processor.features_generator(hr_data, node_features)
-        
+
         feature_index = processor.feature_index_generator(features)
-        
-        # process edges 
+
+        # process edges
         if edge_filepath:
             edges = processor.edges_generator(hr_data, edge_filepath)
         else:
             edges = processor.edges_generator(hr_data)
-            
+
         edge_index = processor.edge_index_generator(edges)
         # check if nan value exists
-        processor.nanCheck(hr_data,feature_index)
-        
-        get_data_with_weight(processor, feature_index, edge_index, index_to_name_mapping)
+        processor.nanCheck(hr_data, feature_index)
+
+        get_data_with_weight(processor, feature_index,
+                             edge_index, index_to_name_mapping)
         session['process_success'] = True
     except Exception as e:
         session['process_success'] = False
@@ -184,19 +207,69 @@ def data_process():
     return render_template('dataProcess.html', process_success=session.get('process_success', False))
 
 # adding later
+
+
 @app.route('/process_node2vec')
-def data_process_transductive():
-    return render_template('Home.html')
+def data_process_node2vec():
+    try:
+        node_filepath = session.get('node_filepath')
+        edge_filepath = session.get('edge_filepath')
+
+        if not node_filepath:
+            logging.error("No node data file provided")
+            flash("No node data file provided", "error")
+            return redirect(url_for('upload_user_data'))
+
+        # Initialize GraphSAGEProcessor for data preprocessing
+        processor = GraphSAGEProcessor(node_filepath, edge_filepath)
+        hr_data = processor.fetch_data_from_user(node_filepath)
+
+        hr_data = processor.rename_columns_to_standard_2(
+            hr_data, processor.COLUMN_ALIGNMENT)
+
+        if hr_data.empty:
+            logging.error("Data file is empty or invalid")
+            flash("Data file is empty or invalid", "error")
+            return redirect(url_for('upload_user_data'))
+
+        edges = processor.edges_generator(hr_data, edge_filepath)
+        edge_index = processor.edge_index_generator(edges)
+        logging.debug("Edges generated successfully")
+
+        # Initialize and train Node2Vec model
+        num_nodes = hr_data.shape[0]
+        node2vec_processor = Node2VecProcessor(
+            num_nodes=num_nodes, embedding_dim=64, walk_length=10, context_size=5, walks_per_node=10, p=1, q=1)
+        embeddings = node2vec_processor.train_model(edge_index, num_epochs=100)
+        logging.debug("Node2Vec model trained successfully")
+
+        # Save the embeddings
+        embeddings_df = pd.DataFrame(embeddings.numpy())
+        embeddings_filepath = os.path.join(
+            app.config['UPLOAD_FOLDER'], 'node2vec_embeddings.csv')
+        embeddings_df.to_csv(embeddings_filepath, index=False)
+        flash("Node2Vec embeddings saved successfully.", "success")
+
+        session['process_success'] = True
+    except Exception as e:
+        logging.exception("Error processing data with Node2Vec")
+        session['process_success'] = False
+        flash(f"Error processing data with Node2Vec: {str(e)}", "error")
+
+    return render_template('dataProcess.html', process_success=session.get('process_success', False))
+
 
 @app.route('/training_progress')
 def training_progress():
     progress = session.get('training_progress', 'Not started')
     return jsonify({'progress': progress})
 
+
 @app.route('/download_processed_file')
 def download_processed_file():
     # Construct an absolute path to the file
-    file_path = os.path.join(current_app.root_path, 'uploads', 'weighted_graph.csv')
+    file_path = os.path.join(current_app.root_path,
+                             'uploads', 'weighted_graph.csv')
     try:
         # Attempt to send the file
         return send_file(file_path, as_attachment=True)
@@ -204,9 +277,11 @@ def download_processed_file():
         # Handle the error if the file does not exist
         return "File not found.", 404
 
+
 @app.route('/analyze')
 def analyze():
     return render_template('analyze.html')
+
 
 @app.route('/upload_to_vis', methods=['GET', 'POST'])
 def upload_file():
@@ -241,13 +316,15 @@ def network_graph(filename):
 
     if G is None:  # Check if G is None, indicating an error occurred
         # flash('File format error. Please upload a valid file.', 'danger')
-        return redirect(url_for('upload_file'))  # Redirect the user to upload page
+        # Redirect the user to upload page
+        return redirect(url_for('upload_file'))
 
     # remove_low_degree_nodes(G)
 
     centrality = calculate_centrality(G, centrality_algo)
     communities = detect_communities(G, community_algo)
-    community_map = {node: i for i, community in enumerate(communities) for node in community}
+    community_map = {node: i for i, community in enumerate(
+        communities) for node in community}
 
     graph_html_path = draw_graph_with_pyvis(G, centrality, community_map)
 
@@ -259,8 +336,10 @@ def show_top_communities(filename):
     """Show top communities based on the selected algorithms."""
     if request.method == 'POST':
         top_n = int(request.form.get('topN', 10))
-        centrality_algo = request.form.get('centrality', 'pagerank')  # Use request.form for POST data
-        community_algo = request.form.get('community', 'louvain')  # Use request.form for POST data
+        # Use request.form for POST data
+        centrality_algo = request.form.get('centrality', 'pagerank')
+        # Use request.form for POST data
+        community_algo = request.form.get('community', 'louvain')
     else:
         top_n = 10
         centrality_algo = 'pagerank'
@@ -272,16 +351,20 @@ def show_top_communities(filename):
 
     if G is None:  # Check if G is None, indicating an error occurred
         # flash('File format error. Please upload a valid file.', 'danger')
-        return redirect(url_for('upload_file'))  # Redirect the user to upload page
+        # Redirect the user to upload page
+        return redirect(url_for('upload_file'))
 
     # remove_low_degree_nodes(G)
 
     centrality = calculate_centrality(G, centrality_algo)
     communities = detect_communities(G, community_algo)
-    community_map = {node: i for i, community in enumerate(communities) for node in community}
+    community_map = {node: i for i, community in enumerate(
+        communities) for node in community}
 
-    community_scores = {i: sum(centrality[node] for node in com) for i, com in enumerate(communities)}
-    top_communities = sorted(community_scores, key=community_scores.get, reverse=True)[:top_n]
+    community_scores = {
+        i: sum(centrality[node] for node in com) for i, com in enumerate(communities)}
+    top_communities = sorted(
+        community_scores, key=community_scores.get, reverse=True)[:top_n]
 
     top_nodes = set().union(*(communities[i] for i in top_communities))
     H = G.subgraph(top_nodes)
@@ -310,10 +393,12 @@ def find_shortest_path():
     # Invert weights to reflect closeness instead of distance
     H = invert_weights(G)
 
-    path = nx.shortest_path(H, source=nodeStart, target=nodeEnd, weight='weight')
+    path = nx.shortest_path(H, source=nodeStart,
+                            target=nodeEnd, weight='weight')
     unique_filename = draw_shortest_path_graph(H, path)
 
     return jsonify({'graph_html_path': f'/static/{unique_filename}'})
+
 
 @app.route('/show_dendrogram/<filename>')
 def show_dendrogram(filename):
@@ -342,7 +427,8 @@ def show_dendrogram(filename):
 
     # Use Pyecharts to generate a dendrogram
     tree_chart = (
-        Tree(init_opts=opts.InitOpts(width="1200px", height="900px", theme=ThemeType.LIGHT))
+        Tree(init_opts=opts.InitOpts(width="1200px",
+             height="900px", theme=ThemeType.LIGHT))
         .add("", [dendrogram_json],
              collapse_interval=10,
              initial_tree_depth=10,
@@ -355,22 +441,23 @@ def show_dendrogram(filename):
                  font_style="normal",
                  font_weight="bold",
                  position="right"  # Adjust label position if needed
-             ),
-             # leaves_label_opts=opts.LabelOpts(
-             #     color="#fff",  # Light color for leaf labels if needed
-             #     position="right",
-             #     horizontal_align="right",
-             #     vertical_align="middle",
-             #     rotate=-90
-             # ),
-             )
+        ),
+            # leaves_label_opts=opts.LabelOpts(
+            #     color="#fff",  # Light color for leaf labels if needed
+            #     position="right",
+            #     horizontal_align="right",
+            #     vertical_align="middle",
+            #     rotate=-90
+            # ),
+        )
         .set_global_opts(
             title_opts=opts.TitleOpts(
                 title="Dendrogram",
                 subtitle="Hierarchical Clustering",
                 title_textstyle_opts=opts.TextStyleOpts(color="black"),
             ),
-            tooltip_opts=opts.TooltipOpts(trigger="item", formatter="{b}")  # Customizing tooltip
+            tooltip_opts=opts.TooltipOpts(
+                trigger="item", formatter="{b}")  # Customizing tooltip
         )
     )
 
@@ -410,10 +497,11 @@ def convert_to_dendrogram_json(Z, labels):
     # Build and return the JSON structure
     return build_json(tree)
 
+
 if __name__ == '__main__':
     if not os.path.exists(UPLOAD_FOLDER):
         os.makedirs(UPLOAD_FOLDER)
     if not os.path.exists(RAW_DATA_FOLDER):
         os.makedirs(RAW_DATA_FOLDER)
-        
-    app.run(debug=True) 
+
+    app.run(debug=True)
