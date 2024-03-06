@@ -165,7 +165,7 @@
             <button
               id="goVisualizationDataUpload"
               class="btn btn-info custom-button-size"
-              onclick="window.location.href='/upload_to_vis'"
+              onclick="handleGoToAnalyze()"
             >
               Go to Analyze
             </button>
@@ -205,6 +205,11 @@
         document
           .getElementById("relationshipFile")
           .classList.remove("disabled-input");
+      }
+
+      function handleGoToAnalyze() {
+        cancelUpload();
+        window.location.href = "/upload_to_vis";
       }
 
       document.getElementById("participantFile").onchange = function () {

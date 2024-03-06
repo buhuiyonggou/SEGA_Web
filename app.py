@@ -11,7 +11,9 @@ from pyecharts.globals import ThemeType
 from scipy.spatial.distance import squareform
 from scipy.cluster.hierarchy import dendrogram, linkage, to_tree
 import json
-from DataProcessor import Node2VecProcessor, GraphSAGEProcessor
+from DataProcessor import DataProcessor
+from graphSAGE import GraphSAGE
+from node2vec import Node2VecProcessor
 import logging
 
 app = Flask(__name__)
@@ -20,6 +22,7 @@ app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 RAW_DATA_FOLDER = 'raw_data'
 ALLOWED_EXTENSIONS = {'csv', 'xlsx'}
+EPOCHES = 200
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['RAW_DATA_FOLDER'] = RAW_DATA_FOLDER
 app.secret_key = 'BabaYaga'
@@ -73,26 +76,6 @@ def load_graph_data(filepath, file_extension):
         # Handle any errors that occur during data loading
         flash(str(e))  # Display the error message to the user
         return None, None  # Return None values to indicate failure
-
-
-def get_data_with_weight(processor, feature_index, edge_index, index_to_name_mapping):
-
-    scaled_weights = processor.model_training(feature_index, edge_index)
-
-    # if scaled_weights.size > 0:
-    edges_with_weights = processor.data_reshape(
-        scaled_weights, edge_index, index_to_name_mapping)
-
-    # Save the DataFrame to a CSV file
-    try:
-        output_path = UPLOAD_FOLDER + '/weighted_graph.csv'
-        edges_with_weights.to_csv(output_path, index=False)
-        message = "Process Status: Congragulations! You data has successfully processed."
-    except Exception as message:
-        flash(f'Error: {str(message)}')
-    finally:
-        flash(message)
-
 
 @app.route('/')
 def home():
@@ -154,7 +137,7 @@ def data_process():
         else:
             flash("Upload Status: Sorry, there is something wrong with uploading...")
 
-        processor = GraphSAGEProcessor(
+        processor = DataProcessor(
             node_filepath, edge_filepath if edge_filepath else None)
 
         hr_data = processor.fetch_data_from_user(node_filepath)
@@ -178,6 +161,8 @@ def data_process():
         columns_to_exclude = ['id', 'name']
         node_features = [
             col for col in hr_data.columns if col not in columns_to_exclude]
+        feature_size = len(node_features)
+        print("feature_size: ", feature_size)
 
         # get features with number
         features = processor.features_generator(hr_data, node_features)
@@ -194,9 +179,23 @@ def data_process():
         # check if nan value exists
         processor.nanCheck(hr_data, feature_index)
 
-        get_data_with_weight(processor, feature_index,
-                             edge_index, index_to_name_mapping)
-        session['process_success'] = True
+        graphSAGEProcessor = GraphSAGE(feature_size, feature_size * 2, 8)
+        scaled_weights = graphSAGEProcessor.model_training(feature_index, edge_index, EPOCHES)
+
+        # if scaled_weights.size > 0:
+        edges_with_weights = graphSAGEProcessor.data_reshape(
+            scaled_weights, edge_index, index_to_name_mapping)
+
+        # Save the DataFrame to a CSV file
+        try:
+            output_path = UPLOAD_FOLDER + '/weighted_graph.csv'
+            edges_with_weights.to_csv(output_path, index=False)
+            message = "Process Status: Congragulations! You data has successfully processed."
+        except Exception as message:
+            flash(f'Error: {str(message)}')
+        finally:
+            flash(message)
+            session['process_success'] = True
     except Exception as e:
         session['process_success'] = False
         flash(f'Error: {str(e)}')
@@ -221,7 +220,7 @@ def data_process_node2vec():
             return redirect(url_for('upload_user_data'))
 
         # Initialize GraphSAGEProcessor for data preprocessing
-        processor = GraphSAGEProcessor(node_filepath, edge_filepath)
+        processor = DataProcessor(node_filepath, edge_filepath)
         hr_data = processor.fetch_data_from_user(node_filepath)
 
         hr_data = processor.rename_columns_to_standard_2(
