@@ -13,8 +13,9 @@ from scipy.cluster.hierarchy import dendrogram, linkage, to_tree
 import json
 from DataProcessor import DataProcessor
 from graphSAGE import GraphSAGE
-from node2vec import Node2VecProcessor
 import logging
+from node2vec import Node2Vec
+
 
 app = Flask(__name__)
 
@@ -76,6 +77,7 @@ def load_graph_data(filepath, file_extension):
         # Handle any errors that occur during data loading
         flash(str(e))  # Display the error message to the user
         return None, None  # Return None values to indicate failure
+
 
 @app.route('/')
 def home():
@@ -180,7 +182,8 @@ def data_process():
         processor.nanCheck(hr_data, feature_index)
 
         graphSAGEProcessor = GraphSAGE(feature_size, feature_size * 2, 8)
-        scaled_weights = graphSAGEProcessor.model_training(feature_index, edge_index, EPOCHES)
+        scaled_weights = graphSAGEProcessor.model_training(
+            feature_index, edge_index, EPOCHES)
 
         # if scaled_weights.size > 0:
         edges_with_weights = graphSAGEProcessor.data_reshape(
@@ -212,46 +215,55 @@ def data_process():
 def data_process_node2vec():
     try:
         node_filepath = session.get('node_filepath')
-        edge_filepath = session.get('edge_filepath')
 
+        # Make sure the node filepath is provided and not None
         if not node_filepath:
-            logging.error("No node data file provided")
             flash("No node data file provided", "error")
+            logging.error("Node filepath is None")
             return redirect(url_for('upload_user_data'))
 
-        # Initialize GraphSAGEProcessor for data preprocessing
-        processor = DataProcessor(node_filepath, edge_filepath)
-        hr_data = processor.fetch_data_from_user(node_filepath)
+        # Create an instance of the DataProcessor
+        processor = DataProcessor(node_filepath)
 
+        # Load and preprocess the data
+        hr_data = processor.fetch_data_from_user(node_filepath)
         hr_data = processor.rename_columns_to_standard_2(
             hr_data, processor.COLUMN_ALIGNMENT)
 
-        if hr_data.empty:
-            logging.error("Data file is empty or invalid")
-            flash("Data file is empty or invalid", "error")
-            return redirect(url_for('upload_user_data'))
+        # Define node features for processing
+        node_features = [
+            col for col in hr_data.columns if col not in ['id', 'name']]
+        processor.NODE_FEATURES = node_features
 
-        edges = processor.edges_generator(hr_data, edge_filepath)
+        # Generate edges based on department and sub-department
+        edges = processor.edges_generator(hr_data)
         edge_index = processor.edge_index_generator(edges)
-        logging.debug("Edges generated successfully")
 
-        # Initialize and train Node2Vec model
-        num_nodes = hr_data.shape[0]
-        node2vec_processor = Node2VecProcessor(
-            num_nodes=num_nodes, embedding_dim=64, walk_length=10, context_size=5, walks_per_node=10, p=1, q=1)
-        embeddings = node2vec_processor.train_model(edge_index, num_epochs=100)
-        logging.debug("Node2Vec model trained successfully")
+        # Generate features
+        features = processor.features_generator(
+            hr_data, processor.NODE_FEATURES)
+        feature_index = processor.feature_index_generator(features)
 
-        # Save the embeddings
-        embeddings_df = pd.DataFrame(embeddings.numpy())
-        embeddings_filepath = os.path.join(
-            app.config['UPLOAD_FOLDER'], 'node2vec_embeddings.csv')
-        embeddings_df.to_csv(embeddings_filepath, index=False)
-        flash("Node2Vec embeddings saved successfully.", "success")
+        # Check for NaN values
+        nan_check_msg = processor.nanCheck(hr_data, feature_index)
+        flash(nan_check_msg, "info")
 
+        # Create a graph from the edges
+        G = nx.Graph()
+        G.add_edges_from(edges)
+
+        # Process with Node2Vec
+        node2vec = Node2Vec(G, dimensions=64, walk_length=30,
+                            num_walks=200, workers=4)
+        model = node2vec.fit(window=10, min_count=1, batch_words=4)
+        embeddings = model.wv
+        embeddings.save_word2vec_format(os.path.join(
+            app.config['UPLOAD_FOLDER'], 'node2vec_embeddings.vec'))
+
+        flash("Node2Vec embeddings generated successfully.", "success")
         session['process_success'] = True
     except Exception as e:
-        logging.exception("Error processing data with Node2Vec")
+        logging.exception("Error processing data with Node2Vec: " + str(e))
         session['process_success'] = False
         flash(f"Error processing data with Node2Vec: {str(e)}", "error")
 
