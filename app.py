@@ -199,6 +199,8 @@ def data_process():
         finally:
             flash(message)
             session['process_success'] = True
+            session['data_processed'] = True
+            session['processed_file'] = 'weighted_graph.csv'
     except Exception as e:
         session['process_success'] = False
         flash(f'Error: {str(e)}')
@@ -262,6 +264,8 @@ def data_process_node2vec():
 
         flash("Node2Vec embeddings generated successfully.", "success")
         session['process_success'] = True
+        session['data_processed'] = True
+        session['processed_file'] = 'weighted_graph.csv'
     except Exception as e:
         logging.exception("Error processing data with Node2Vec: " + str(e))
         session['process_success'] = False
@@ -291,7 +295,8 @@ def download_processed_file():
 
 @app.route('/analyze')
 def analyze():
-    return render_template('analyze.html')
+    filename = session.get('processed_file', None)
+    return render_template('analyze.html', filename=filename)
 
 
 @app.route('/upload_to_vis', methods=['GET', 'POST'])

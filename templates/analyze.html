@@ -57,6 +57,7 @@
         .btn-primary {
             background-color: #2575fc;
             border-color: #2063d6; 
+        }
 
         .btn-secondary {
             background-color: #6FA8DC;
@@ -224,6 +225,15 @@
         window.location.href =
           "{{ url_for('show_dendrogram', filename=filename) }}";
       }
+      function handleGoAnalyze() {
+          $.getJSON('/get_process_status', function (data) {
+            if (data.process_complete) {
+              window.location.href = "/analyze";  // Redirect to analyze page
+            } else {
+              alert("Please complete the data processing first.");
+            }
+          });
+        }
     </script>
   </body>
 </html>

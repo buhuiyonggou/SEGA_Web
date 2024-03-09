@@ -98,10 +98,12 @@
         {% if not session.get('upload_success', False) or not session.get('process_success', False) %}disabled{% endif %}>
     Download CSV
 </button>
-<button id="goVisualizationDataUpload" class="btn btn-success mt-3" onclick="handleGoAnalyze()"
-        {% if not session.get('upload_success', False) or not session.get('process_success', False) %}disabled{% endif %}>
-    Go to Analyze
+<button id="goVisualizationDataUpload" class="btn btn-success mt-3" onclick="handleGoAnalyze()" {% if not
+  session.get('data_processed', False) %}disabled{% endif %}>
+  Go to Analyze
 </button>
+
+
         <button
           id="goHomePage"
           class="btn btn-secondary mt-3"
@@ -131,15 +133,16 @@
         }, 500); 
       }
 
-      let reminded = 0;
-      function handleGoAnalyze() {
-        if (reminded === 1) {
-          window.location.href = "/upload_to_vis";
-        } else {
-          alert("Don't forget download the file before leaving.");
-          reminded = 1;
+      var dataProcessed = {{ 'true' if session.get('data_processed', False) else 'false' }};
+
+        function handleGoAnalyze() {
+          if (dataProcessed) {
+            window.location.href = "/analyze";  // Redirect to analyze route
+          } else {
+            alert("Please process the data before analyzing.");
+          }
         }
-      }
+
     </script>
   </body>
 </html>
