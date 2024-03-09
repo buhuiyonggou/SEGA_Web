@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import networkx as nx
+import numpy as np
 from flask import Flask, session, render_template, request, redirect, flash, jsonify, redirect, url_for, send_file, current_app
 from werkzeug.utils import secure_filename
 from algorithms import calculate_centrality, detect_communities
@@ -250,6 +251,10 @@ def data_process_node2vec():
         nan_check_msg = processor.nanCheck(hr_data, feature_index)
         flash(nan_check_msg, "info")
 
+        # Ensure 'index_to_name_mapping' is available
+        index_to_name_mapping = processor.create_index_id_name_mapping(hr_data)
+        name_dict = index_to_name_mapping.set_index('index')['name'].to_dict()
+
         # Create a graph from the edges
         G = nx.Graph()
         G.add_edges_from(edges)
@@ -259,17 +264,36 @@ def data_process_node2vec():
                             num_walks=200, workers=4)
         model = node2vec.fit(window=10, min_count=1, batch_words=4)
         embeddings = model.wv
-        embeddings.save_word2vec_format(os.path.join(
-            app.config['UPLOAD_FOLDER'], 'node2vec_embeddings.vec'))
 
-        flash("Node2Vec embeddings generated successfully.", "success")
+        # Save Node2Vec embeddings to a DataFrame
+        edge_list = []
+        for node in G.nodes():
+            if node in embeddings:
+                for neighbor in G.neighbors(node):
+                    if neighbor in embeddings:
+                        weight = np.dot(embeddings[node], embeddings[neighbor])
+                        source_name = name_dict.get(node, f"Unknown-{node}")
+                        target_name = name_dict.get(
+                            neighbor, f"Unknown-{neighbor}")
+                        edge_list.append((source_name, target_name, weight))
+
+        edges_df = pd.DataFrame(
+            edge_list, columns=['Source', 'Target', 'Weight'])
+
+        # Save the DataFrame to a CSV file
+        output_path = os.path.join(
+            app.config['UPLOAD_FOLDER'], 'node2vec_edges.csv')
+        edges_df.to_csv(output_path, index=False)
+
+        flash("Node2Vec process completed and CSV file generated.", "success")
         session['process_success'] = True
         session['data_processed'] = True
-        session['processed_file'] = 'weighted_graph.csv'
+        session['processed_file'] = 'node2vec_edges.csv'
+
     except Exception as e:
-        logging.exception("Error processing data with Node2Vec: " + str(e))
+        logging.exception("Error in Node2Vec processing: " + str(e))
         session['process_success'] = False
-        flash(f"Error processing data with Node2Vec: {str(e)}", "error")
+        flash(f"Error in Node2Vec processing: {str(e)}", "error")
 
     return render_template('dataProcess.html', process_success=session.get('process_success', False))
 
@@ -282,15 +306,14 @@ def training_progress():
 
 @app.route('/download_processed_file')
 def download_processed_file():
-    # Construct an absolute path to the file
-    file_path = os.path.join(current_app.root_path,
-                             'uploads', 'weighted_graph.csv')
-    try:
-        # Attempt to send the file
+    processed_file = session.get('processed_file')
+    if processed_file:
+        file_path = os.path.join(
+            current_app.root_path, app.config['UPLOAD_FOLDER'], processed_file)
         return send_file(file_path, as_attachment=True)
-    except FileNotFoundError:
-        # Handle the error if the file does not exist
-        return "File not found.", 404
+    else:
+        flash('No processed file available for download.')
+        return redirect(url_for('data_process'))
 
 
 @app.route('/analyze')
