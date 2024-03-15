@@ -4,6 +4,7 @@ from torch_geometric.nn import SAGEConv
 from torch_geometric.data import Data
 import torch.nn.functional as F
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.manifold import TSNE
 
 class GraphSAGE(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels):
@@ -55,7 +56,7 @@ class GraphSAGE(torch.nn.Module):
             optimizer.step()
 
         # Generate embeddings for nodes without gradient calculations
-        self.eval()  # Switch to evaluation mode
+        self.eval()
         with torch.no_grad():
             embeddings = self(data.x, data.edge_index)
 
@@ -64,14 +65,17 @@ class GraphSAGE(torch.nn.Module):
 
         # Initialize the scaler
         scaler = MinMaxScaler()
-
         # Reshape new_weights for scaling - sklearn's MinMaxScaler expects a 2D array
         weights_reshaped = new_weights.numpy().reshape(-1, 1)
-
-        # Apply the scaler to the weights
         scaled_weights = scaler.fit_transform(weights_reshaped).flatten()
 
-        return scaled_weights
+        return embeddings, scaled_weights
+    
+    # Generate t-SNE embeddings to supervise the performance of the model
+    @staticmethod
+    def generate_tsne_embeddings(embeddings, n_components=2, perplexity=30):
+        tsne_embeddings = TSNE(n_components=n_components, perplexity=perplexity, random_state=42).fit_transform(embeddings.cpu().numpy())
+        return tsne_embeddings
 
     def data_reshape(self, scaled_weights, edge_index, index_to_name_mapping):
         # Create a DataFrame to export
