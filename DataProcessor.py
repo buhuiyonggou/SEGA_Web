@@ -56,19 +56,18 @@ class DataProcessor:
         return df
 
     def rename_columns_to_standard_1(self, df, column_alignment):
-        renamed_columns = df.columns.tolist()  # Start with the original column names
+        df_copy = df.copy()    
+        
         for standard_name, variations in column_alignment.items():
             for variation in variations:
-                found_columns = [
-                    col for col in df.columns if col.lower() == variation.lower()]
+                found_columns = [col for col in df_copy.columns if col.lower() == variation.lower()]
                 if found_columns:
-                    index_of_found = renamed_columns.index(found_columns[0])
-                    renamed_columns[index_of_found] = standard_name
+                    df_copy.rename(columns={found_columns[0]: standard_name}, inplace=True)
                     break  # Stop looking for other variations if one is found
-        if not isinstance(renamed_columns, pd.DataFrame):
+        if not isinstance(df_copy, pd.DataFrame):
             logging.error(
-                "rename_columns_to_standard is not returning a DataFrame")
-        return renamed_columns
+                "rename_columns_to_standard_1 is not returning a DataFrame")
+        return df_copy
 
     # Function to rename columns based on expected variations
     def rename_columns_to_standard_2(self, df, column_alignment):

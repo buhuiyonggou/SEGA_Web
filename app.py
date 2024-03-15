@@ -149,7 +149,7 @@ def data_process():
             flash("Sorry, document data cannot be found.")
 
         # process features
-        hr_data.columns = processor.rename_columns_to_standard_1(
+        hr_data = processor.rename_columns_to_standard_1(
             hr_data, processor.COLUMN_ALIGNMENT)
 
         if 'id' not in hr_data.columns:
@@ -183,9 +183,9 @@ def data_process():
         processor.nanCheck(hr_data, feature_index)
 
         graphSAGEProcessor = GraphSAGE(feature_size, feature_size * 2, 8)
-        scaled_weights = graphSAGEProcessor.model_training(
+        embeddings, scaled_weights = graphSAGEProcessor.model_training(
             feature_index, edge_index, EPOCHES)
-
+        
         # if scaled_weights.size > 0:
         edges_with_weights = graphSAGEProcessor.data_reshape(
             scaled_weights, edge_index, index_to_name_mapping)
@@ -211,8 +211,11 @@ def data_process():
         session.pop('edge_filepath', None)
     return render_template('dataProcess.html', process_success=session.get('process_success', False))
 
-# adding later
-
+# add tsne_embeddings
+@app.route('/tsne_embeddings')
+def tsne_embeddings_route():
+    tsne_embeddings = session.get('tsne_embeddings', [])
+    return jsonify(tsne_embeddings)
 
 @app.route('/process_node2vec')
 def data_process_node2vec():
