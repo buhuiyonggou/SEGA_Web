@@ -15,7 +15,8 @@ def draw_graph_with_pyvis(X, centrality, community_map):
     net = Network(height="750px", width="100%", bgcolor="#ffffff", font_color="black")
 
     # Sort nodes in H based on centrality, only show top 100
-    top_nodes = sorted((node for node in X.nodes()), key=lambda node: centrality.get(node, 0), reverse=True)[:200]
+    top_nodes = sorted((node for node in X.nodes()), key=lambda node: centrality.get(node, 0), reverse=True)[:300]
+    # top_nodes = X.nodes()
 
     community_colors = ["#FFA07A", "#20B2AA", "#778899", "#9370DB", "#FFD700", "#FF6347", "#3CB371", "#F08080",
                         "#00FA9A", "#BDB76B", "#FF00FF"]

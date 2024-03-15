@@ -453,9 +453,21 @@ def show_dendrogram(filename):
     if G is None:
         flash('Error loading graph data.', 'danger')
         return redirect(url_for('upload_file'))
+    def inverse_weight(u, v, d):
+        weight = d.get('weight', 1.0)
+        # 防止权重为零或非常小
+        epsilon = 1e-4  # 一个小的常数，防止除以零
+        if weight > epsilon:
+            return 1.0 / weight
+        else:
+            # 如果权重小于阈值，则将其设置为一个大的有限值
+            return 1e4
 
     # Compute the distance matrix directly from graph G
-    distance_matrix = nx.floyd_warshall_numpy(G, weight='weight')
+    # distance_matrix = nx.floyd_warshall_numpy(G, weight='weight')
+    distance_matrix = nx.floyd_warshall_numpy(G, weight=inverse_weight)
+    # 检查并处理无限值
+    distance_matrix[np.isinf(distance_matrix)] = 1e4  # 例如，用1e4替换无限值
     # Convert the numpy array returned by floyd_warshall_numpy to a format suitable for the linkage function
     Z = linkage(squareform(distance_matrix, checks=False), method='complete')
 
