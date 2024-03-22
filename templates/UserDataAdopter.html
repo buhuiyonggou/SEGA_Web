@@ -118,22 +118,21 @@
               "<strong>source</strong>", "<strong>target</strong>",
             </p>
             <p class="mt-n3">
-              and "<strong>a number representing relationship</strong>"
+              and "<strong>a numric relationship</strong>"
             </p></small
           >
         </div>
 
-        {% with messages = get_flashed_messages(with_categories=true) %} {% if
+       {% with messages = get_flashed_messages(with_categories=true) %} {% if
         messages %}
         <script>
-          window.onload = function() {
-              {% for category, message in messages %}
-              alert("{{ message }}");
-              {% endfor %}
-          };
-        </script>
+             window.onload = function() {
+                 {% for category, message in messages %}
+                 alert("{{ message }}");
+                 {% endfor %}
+             };        
+      </script>  
         {% endif %} {% endwith %}
-
         <div>
           <div class="d-flex justify-content-around">
             <button
@@ -142,7 +141,7 @@
               id="confirmUploadBtn"
               onclick="confirmEdgeFile()"
               disabled
-            >
+            > 
               Confirm Upload
             </button>
             <button

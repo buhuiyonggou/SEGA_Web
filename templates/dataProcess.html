@@ -132,8 +132,8 @@
             window.location.href = url; 
         }, 500); 
       }
-
-      var dataProcessed = {{ 'true' if session.get('data_processed', False) else 'false' }};
+      
+       var dataProcessed = {{ 'true' if session.get('data_processed', False) else 'false' }};
 
         function handleGoAnalyze() {
           if (dataProcessed) {
@@ -142,7 +142,6 @@
             alert("Please process the data before analyzing.");
           }
         }
-
     </script>
   </body>
 </html>

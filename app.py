@@ -3,6 +3,7 @@ import pandas as pd
 import networkx as nx
 import numpy as np
 from flask import Flask, session, render_template, request, redirect, flash, jsonify, redirect, url_for, send_file, current_app
+import torch
 from werkzeug.utils import secure_filename
 from algorithms import calculate_centrality, detect_communities
 from graph_utils import draw_graph_with_pyvis, draw_shortest_path_graph, invert_weights
@@ -129,6 +130,7 @@ def confirm_edge_upload():
     return render_template('dataProcess.html', edge_file_provided='edge_filepath' in session)
 
 
+# Implementation of graphSAGE
 @app.route('/process_graphsage')
 def data_process():
     try:
@@ -153,19 +155,24 @@ def data_process():
             hr_data, processor.COLUMN_ALIGNMENT)
 
         if 'id' not in hr_data.columns:
-            logging.error("The 'id' column is missing in hr_data")
-            flash("The 'id' column is missing in hr_data", "error")
+            logging.error("The 'id' column is missing")
+            flash("The 'id' column is missing", "error")
+        if 'name' not in hr_data.columns:
+            logging.error("The 'name' column is missing")
+            flash("The 'name' column is missing", "error")
 
         # store index map
         index_to_name_mapping = processor.create_index_id_name_mapping(hr_data)
 
-        # align name of columns
-        # target embedding attributes for this instance, used for creating node_index
-        columns_to_exclude = ['id', 'name']
+        columns_to_exclude = ['id', 'name', 'department']
+        
+        # prepare num_features and num_classes for visualization of validation 
         node_features = [
             col for col in hr_data.columns if col not in columns_to_exclude]
-        feature_size = len(node_features)
-        print("feature_size: ", feature_size)
+        num_features = len(node_features)
+        
+        unique_departments = hr_data['department'].unique()
+        num_classes = len(unique_departments)
 
         # get features with number
         features = processor.features_generator(hr_data, node_features)
@@ -179,16 +186,33 @@ def data_process():
             edges = processor.edges_generator(hr_data)
 
         edge_index = processor.edge_index_generator(edges)
+        print(len(edge_index[0]))
+        print(len(edge_index[1]))
         # check if nan value exists
         processor.nanCheck(hr_data, feature_index)
 
-        graphSAGEProcessor = GraphSAGE(feature_size, feature_size * 2, 8)
-        embeddings, scaled_weights = graphSAGEProcessor.model_training(
-            feature_index, edge_index, EPOCHES)
+        graphSAGEProcessor = GraphSAGE(num_features, 16, num_classes)
         
-        # if scaled_weights.size > 0:
-        edges_with_weights = graphSAGEProcessor.data_reshape(
-            scaled_weights, edge_index, index_to_name_mapping)
+        # allowing using cuda to improve efficiency
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        graphSAGEProcessor = graphSAGEProcessor.to(device)
+        
+        embeddings = graphSAGEProcessor.model_training(graphSAGEProcessor, device, feature_index, edge_index, EPOCHES)
+        edge_embeddings_start = embeddings[edge_index[0]]
+        edge_embeddings_end = embeddings[edge_index[1]]
+        
+        print(type(edge_embeddings_start))
+        print(type(edge_embeddings_end))
+        print(len(edge_embeddings_start), len(edge_embeddings_end))
+        
+        raw_weights = torch.norm(edge_embeddings_start - edge_embeddings_end, dim=1).cpu().numpy()
+        edges_with_weights = pd.DataFrame(edge_index.t().cpu().numpy(), columns=['Source', 'Target'])
+        edges_with_weights['Weight'] = raw_weights
+        
+        index_to_name_dict = index_to_name_mapping.set_index('index')['name'].to_dict()
+        
+        edges_with_weights['Source'] = edges_with_weights['Source'].map(index_to_name_dict)
+        edges_with_weights['Target'] = edges_with_weights['Target'].map(index_to_name_dict)
 
         # Save the DataFrame to a CSV file
         try:
@@ -196,7 +220,7 @@ def data_process():
             edges_with_weights.to_csv(output_path, index=False)
             message = "Process Status: Congragulations! You data has successfully processed."
         except Exception as message:
-            flash(f'Error: {str(message)}')
+            flash(f'Error: output {str(message)}')
         finally:
             flash(message)
             session['process_success'] = True
@@ -391,9 +415,7 @@ def show_top_communities(filename):
     _, file_extension = os.path.splitext(filename)
     _, G = load_graph_data(filepath, file_extension)
 
-    if G is None:  # Check if G is None, indicating an error occurred
-        # flash('File format error. Please upload a valid file.', 'danger')
-        # Redirect the user to upload page
+    if G is None:  
         return redirect(url_for('upload_file'))
 
     # remove_low_degree_nodes(G)
@@ -455,31 +477,25 @@ def show_dendrogram(filename):
         return redirect(url_for('upload_file'))
     def inverse_weight(u, v, d):
         weight = d.get('weight', 1.0)
-        # 防止权重为零或非常小
-        epsilon = 1e-4  # 一个小的常数，防止除以零
+        epsilon = 1e-4 
         if weight > epsilon:
             return 1.0 / weight
         else:
-            # 如果权重小于阈值，则将其设置为一个大的有限值
             return 1e4
 
     # Compute the distance matrix directly from graph G
     # distance_matrix = nx.floyd_warshall_numpy(G, weight='weight')
     distance_matrix = nx.floyd_warshall_numpy(G, weight=inverse_weight)
-    # 检查并处理无限值
-    distance_matrix[np.isinf(distance_matrix)] = 1e4  # 例如，用1e4替换无限值
+    distance_matrix[np.isinf(distance_matrix)] = 1e4  
     # Convert the numpy array returned by floyd_warshall_numpy to a format suitable for the linkage function
     Z = linkage(squareform(distance_matrix, checks=False), method='complete')
 
-    # Convert the linkage matrix Z into a JSON tree structure
     dendrogram_json = convert_to_dendrogram_json(Z, list(G.nodes()))
 
-    # Save the dendrogram_json to a file
     dendrogram_json_path = os.path.join('static', 'dendrogram.json')
     with open(dendrogram_json_path, 'w') as f:
         json.dump(dendrogram_json, f)
 
-    # Use Pyecharts to generate a dendrogram
     tree_chart = (
         Tree(init_opts=opts.InitOpts(width="1200px",
              height="900px", theme=ThemeType.LIGHT))
