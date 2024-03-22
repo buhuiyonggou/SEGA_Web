@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import networkx as nx
 import numpy as np
-from flask import Flask, session, render_template, request, redirect, flash, jsonify, redirect, url_for, send_file, current_app
+from flask import Flask, get_flashed_messages, request, session, render_template, request, redirect, flash, jsonify, redirect, url_for, send_file, current_app
 import torch
 from werkzeug.utils import secure_filename
 from algorithms import calculate_centrality, detect_communities
@@ -94,6 +94,8 @@ def upload_user_data():
 
 @app.route('/user_upload', methods=['GET', 'POST'])
 def upload_data_store():
+    user_option = request.form.get('userOption')
+
     if request.method == 'POST':
         node_file = request.files.get('participantFile')
         if node_file and allowed_file(node_file.filename):
@@ -197,7 +199,7 @@ def data_process():
         
         embeddings = graphSAGEProcessor.model_training(graphSAGEProcessor, device, feature_index, edge_index, EPOCHES)
         # generating validation plot
-        graphSAGEProcessor.generate_tsne_plot(embeddings, departments_list, file_path='static/tsne_plot.png')
+        graphSAGEProcessor.generate_tsne_plot(embeddings, departments_list)
         
         edge_embeddings_start = embeddings[edge_index[0]]
         edge_embeddings_end = embeddings[edge_index[1]]
@@ -231,12 +233,6 @@ def data_process():
         session.pop('node_filepath', None)
         session.pop('edge_filepath', None)
     return render_template('dataProcess.html', process_success=session.get('process_success', False))
-
-# add tsne_embeddings
-@app.route('/tsne_embeddings')
-def tsne_embeddings_route():
-    tsne_embeddings = session.get('tsne_embeddings', [])
-    return jsonify(tsne_embeddings)
 
 @app.route('/process_node2vec')
 def data_process_node2vec():
@@ -318,15 +314,18 @@ def data_process_node2vec():
         logging.exception("Error in Node2Vec processing: " + str(e))
         session['process_success'] = False
         flash(f"Error in Node2Vec processing: {str(e)}", "error")
+    finally:
+        # Clear the session after processing is complete
+        session.pop('node_filepath', None)
+        session.pop('edge_filepath', None)
 
-    return render_template('dataProcess.html', process_success=session.get('process_success', False))
+    return render_template('dataProcess.html', process_success=session.get('process_success', False), plot = False)
 
 
 @app.route('/training_progress')
 def training_progress():
     progress = session.get('training_progress', 'Not started')
     return jsonify({'progress': progress})
-
 
 @app.route('/download_processed_file')
 def download_processed_file():

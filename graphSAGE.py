@@ -62,7 +62,7 @@ class GraphSAGE(torch.nn.Module):
 
         return embeddings
 
-    def generate_tsne_plot(self, embeddings, departments_list, file_path='tsne_plot.png'):
+    def generate_tsne_plot(self, embeddings, departments_list, file_path='tsne_plot_graphSAGE.png'):
         departments_array = np.array(departments_list)
 
         tsne = TSNE(n_components=2, perplexity=30, n_iter=300)
@@ -78,4 +78,4 @@ class GraphSAGE(torch.nn.Module):
         plt.ylabel("TSNE-2")
         
         plt.savefig(file_path)
-        plt.close() 
+        plt.close()

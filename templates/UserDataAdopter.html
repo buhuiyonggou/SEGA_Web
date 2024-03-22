@@ -44,7 +44,7 @@
         margin-left: 5px;
       }
       .custom-label-size {
-        font-size: 20px;
+        font-size: 18px;
       }
       .progress,
       .btn {
@@ -96,7 +96,7 @@
           <small id="eparticipantFileHelp" class="form-text text-muted"
             ><p>
               Please make sure your file contains column "<strong>id</strong>",
-              "<strong>name</strong>", and "<strong>department</strong>"
+              "<strong>name</strong>", and "<strong id="columnType">department</strong>"
             </p></small
           >
         </div>
@@ -122,6 +122,14 @@
             </p></small
           >
         </div>
+
+        <div class="form-group d-flex flex-column align-items-center col-md-5 mx-auto">
+          <label for="userOption" class="custom-label-size ">Type of organization</label>  
+          <select class="form-control" id="userOption" name="userOption" onchange="updateMessage()">
+            <option value="enterprise">Enterprise</option>
+            <option value="education">Education Institution</option>
+          </select>
+      </div>
 
        {% with messages = get_flashed_messages(with_categories=true) %} {% if
         messages %}
@@ -204,6 +212,7 @@
         document
           .getElementById("relationshipFile")
           .classList.remove("disabled-input");
+        updateUploadButtonState();
       }
 
       function handleGoToAnalyze() {
@@ -242,6 +251,16 @@
         validateFileType("relationshipFile");
         updateUploadButtonState();
       };
+
+      function updateMessage() {
+        var userOption = document.getElementById("userOption").value;
+        var columnType = document.getElementById("columnType");
+        if(userOption === "education") {
+            columnType.textContent = "class";
+        } else {
+            columnType.textContent = "department";
+        }
+    }
 
       window.onload = function () {
         var isUploadValid =
