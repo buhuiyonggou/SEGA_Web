@@ -1,9 +1,11 @@
-import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 from torch_geometric.nn import SAGEConv
 from torch_geometric.data import Data
 import torch.nn.functional as F
-from sklearn.preprocessing import MinMaxScaler
 from sklearn.manifold import TSNE
 
 class GraphSAGE(torch.nn.Module):
@@ -60,18 +62,20 @@ class GraphSAGE(torch.nn.Module):
 
         return embeddings
 
-    def data_reshape(self, scaled_weights, edge_index, index_to_name_mapping):
-        # Create a DataFrame to exports
-        edges_with_weights = pd.DataFrame(
-            edge_index.t().numpy(), columns=['Source', 'Target'])
+    def generate_tsne_plot(self, embeddings, departments_list, file_path='tsne_plot.png'):
+        departments_array = np.array(departments_list)
 
-        # Update the DataFrame with scaled weights
-        edges_with_weights['Weight'] = scaled_weights
+        tsne = TSNE(n_components=2, perplexity=30, n_iter=300)
+        tsne_results = tsne.fit_transform(embeddings)
 
-        # Use id to map names
-        edges_with_weights['Source'] = edges_with_weights['Source'].apply(
-            lambda x: index_to_name_mapping.loc[x, 'name'])
-        edges_with_weights['Target'] = edges_with_weights['Target'].apply(
-            lambda x: index_to_name_mapping.loc[x, 'name'])
-
-        return edges_with_weights
+        plt.figure(figsize=(16, 10))
+        for dept in set(departments_array):
+            idx = departments_array == dept
+            plt.scatter(tsne_results[idx, 0], tsne_results[idx, 1], label=dept)
+        plt.legend()
+        plt.title("GraphSAGE Embeddings Visualized by Department")
+        plt.xlabel("TSNE-1")
+        plt.ylabel("TSNE-2")
+        
+        plt.savefig(file_path)
+        plt.close() 

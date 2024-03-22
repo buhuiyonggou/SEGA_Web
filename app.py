@@ -163,7 +163,7 @@ def data_process():
 
         # store index map
         index_to_name_mapping = processor.create_index_id_name_mapping(hr_data)
-
+        departments_list = index_to_name_mapping['department'].tolist()
         columns_to_exclude = ['id', 'name', 'department']
         
         # prepare num_features and num_classes for visualization of validation 
@@ -186,8 +186,6 @@ def data_process():
             edges = processor.edges_generator(hr_data)
 
         edge_index = processor.edge_index_generator(edges)
-        print(len(edge_index[0]))
-        print(len(edge_index[1]))
         # check if nan value exists
         processor.nanCheck(hr_data, feature_index)
 
@@ -198,12 +196,11 @@ def data_process():
         graphSAGEProcessor = graphSAGEProcessor.to(device)
         
         embeddings = graphSAGEProcessor.model_training(graphSAGEProcessor, device, feature_index, edge_index, EPOCHES)
+        # generating validation plot
+        graphSAGEProcessor.generate_tsne_plot(embeddings, departments_list, file_path='static/tsne_plot.png')
+        
         edge_embeddings_start = embeddings[edge_index[0]]
         edge_embeddings_end = embeddings[edge_index[1]]
-        
-        print(type(edge_embeddings_start))
-        print(type(edge_embeddings_end))
-        print(len(edge_embeddings_start), len(edge_embeddings_end))
         
         raw_weights = torch.norm(edge_embeddings_start - edge_embeddings_end, dim=1).cpu().numpy()
         edges_with_weights = pd.DataFrame(edge_index.t().cpu().numpy(), columns=['Source', 'Target'])
