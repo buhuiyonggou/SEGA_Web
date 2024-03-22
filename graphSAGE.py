@@ -24,61 +24,44 @@ class GraphSAGE(torch.nn.Module):
 
         # Negative sampling: randomly select pairs of nodes that are not directly connected
         num_nodes = out.size(0)
-        # Default to the same number of negative samples as positive
         num_neg_samples = num_neg_samples or edge_index.size(1)
         neg_edge_index = torch.randint(
             0, num_nodes, (2, num_neg_samples), dtype=torch.long, device=out.device)
 
-        # Compute loss for negative samples
         neg_loss = F.relu(
             1 - F.pairwise_distance(out[neg_edge_index[0]], out[neg_edge_index[1]])).pow(2).mean()
 
-        # Combine positive and negative loss
         loss = pos_loss + neg_loss
         return loss
 
-    def model_training(self, feature_index, edge_index, epoches):
-        # Initialize the GraphSAGE model
-        optimizer = torch.optim.Adam(self.parameters(), lr=0.01)
-
+    def model_training(self, model, device, feature_index, edge_index, epoches):
         data = Data(x=feature_index, edge_index=edge_index)
-
+        
+        data = data.to(device)
+        optimizer = torch.optim.Adam(self.parameters(), lr=0.01, weight_decay=5e-4)
+        model.train()
+        
         # Training loop
-        for epoch in range(epoches):  # Adjust the number of epochs as needed
-            self.train()
+        for epoch in range(epoches):
             optimizer.zero_grad()
-            out = self(data.x, data.edge_index)
+            out = model(data.x, data.edge_index)
+            loss = model.contrastive_loss(out, data.edge_index)
 
-            # Use the contrastive loss function here
-            loss = self.contrastive_loss(out, data.edge_index)
-
-            loss.backward()
+            # backup for supervised learning
+            # loss = F.nll_loss(out[data.train_mask], data.y[data.train_mask])
+            loss.backward() 
             optimizer.step()
+            if (epoch+1) % 10 == 0:
+                print(f'Epoch {epoch+1}, Loss: {loss.item()}')
 
-        # Generate embeddings for nodes without gradient calculations
-        self.eval()
+        model.eval()
         with torch.no_grad():
-            embeddings = self(data.x, data.edge_index)
+            embeddings = model(data.x, data.edge_index)
 
-            new_weights = torch.norm(
-                embeddings[data.edge_index[0]] - embeddings[data.edge_index[1]], dim=1)
-
-        # Initialize the scaler
-        scaler = MinMaxScaler()
-        # Reshape new_weights for scaling - sklearn's MinMaxScaler expects a 2D array
-        weights_reshaped = new_weights.numpy().reshape(-1, 1)
-        scaled_weights = scaler.fit_transform(weights_reshaped).flatten()
-
-        return embeddings, scaled_weights
-    
-    # Generate t-SNE embeddings to supervise the performance of the model
-    @staticmethod
-    def generate_tsne_embeddings(embeddings, n_components=2, perplexity=30):
-        tsne_embeddings = TSNE(n_components=n_components, perplexity=perplexity, random_state=42).fit_transform(embeddings.cpu().numpy())
-        return tsne_embeddings
+        return embeddings
 
     def data_reshape(self, scaled_weights, edge_index, index_to_name_mapping):
-        # Create a DataFrame to export
+        # Create a DataFrame to exports
         edges_with_weights = pd.DataFrame(
             edge_index.t().numpy(), columns=['Source', 'Target'])
 

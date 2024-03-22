@@ -97,7 +97,8 @@ class DataProcessor:
         index_to_id_name_mapping = [{
             'index': i,
             'id': row['id'],
-            'name': row['name'].title() if 'name' in row else 'Unknown'
+            'name': row['name'].title() if 'name' in row else 'Unknown',
+            'department': row['department']
         } for i, row in hr_data.iterrows()]
 
         mapping_df = pd.DataFrame(index_to_id_name_mapping)
