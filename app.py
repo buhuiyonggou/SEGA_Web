@@ -68,76 +68,117 @@ def upload_data_store():
             flash(message, 'error')
             return redirect(url_for('upload_user_data'))
 
-        flash(message, 'success')
         return redirect(url_for('graph_infer', infer='True' if infer_required else 'False'))
     return redirect(url_for('upload_user_data'))
 
 @app.route('/graph_infer')
 def graph_infer():
     infer_required = request.args.get('infer', default='False', type=str) == 'True'
-    # validate if required columns exist 
+    node_filepath = session.get('node_filepath')
     
-    return render_template('inferSelector.html', infer_required=infer_required)
+    if not node_filepath:
+        return redirect(url_for('upload_user_data'))
 
-# Implementation of graphSAGE
-@app.route('/process_graphsage')
-def data_process():
+    if node_filepath.endswith('.csv'):
+        node_df = pd.read_csv(node_filepath, encoding='utf-8')
+    elif node_filepath.endswith('.xlsx'):
+        node_df = pd.read_excel(node_filepath)
+        
+    columns = node_df.columns.tolist()
+    # Exclude 'id' and 'name' from the columns
+    selectable_columns = [col for col in columns if col.lower() not in ['id', 'name']]
+
+    return render_template('inferSelector.html', infer_required=infer_required, columns=selectable_columns)
+
+@app.route('/perform_inference', methods=['POST'])
+def perform_inference():
+    session['selected_label_column'] = request.form.get('selectedLabelColumn')
+    session['selected_edge_infer_column'] = request.form.get('selectedEdgeInferColumn', None)
+    session['infer_required'] = 'True' if session['selected_edge_infer_column'] is None else 'False'
+    
+    return redirect(url_for('data_process_panel'))
+
+@app.route('/data_panel')
+def data_process_panel():
+    label_column = session.get('selected_label_column').lower()
+    edge_infer_column = session.get('selected_edge_infer_column').lower()
+    infer_required = session.get('infer_required') == 'True'
+    
     try:
         node_filepath = session.get('node_filepath')
         edge_filepath = session.get('edge_filepath')
-
+        
         if node_filepath:
             flash("Upload Status: upload successful!")
         else:
-            flash("Upload Status: Sorry, there is something wrong with uploading...")
-
+            logging.error("Upload Status: Sorry, there is something wrong with uploading...")
+        
         processor = DataProcessor(
             node_filepath, edge_filepath if edge_filepath else None)
-
-        hr_data = processor.fetch_data_from_user(node_filepath)
-
-        if hr_data.empty:
-            flash("Sorry, document data cannot be found.")
-
+        
+        nodes_data = processor.fetch_data_from_user(node_filepath)
+        
+        if nodes_data.empty:
+            logging.error("Sorry, document data cannot be found.")
+        
         # process features
-        hr_data = processor.rename_columns_to_standard_graphSAGE(
-            hr_data, processor.COLUMN_ALIGNMENT)
-
-        if 'id' not in hr_data.columns:
-            logging.error("The 'id' column is missing")
-            flash("The 'id' column is missing", "error")
-        if 'name' not in hr_data.columns:
-            logging.error("The 'name' column is missing")
-            flash("The 'name' column is missing", "error")
-
+        nodes_data = processor.rename_columns_to_standard_graphSAGE(
+            nodes_data, processor.COLUMN_ALIGNMENT)
+        
         # store index map
-        index_to_name_mapping = processor.create_index_id_name_mapping(hr_data)
-        departments_list = index_to_name_mapping['department'].tolist()
-        columns_to_exclude = ['id', 'name', 'department']
+        index_to_name_mapping = processor.create_index_id_name_mapping(nodes_data, edge_infer_column)
         
-        # prepare num_features and num_classes for visualization of validation 
+        unique_infer_indicator = nodes_data[edge_infer_column].unique()
+        
+        # # store a list of all given label
+        # departments_list = index_to_name_mapping['department'].tolist()
+        
+        # prepare num_features and num_classes for visualization of validation
+        if label_column == edge_infer_column:
+            columns_to_exclude = ['id', 'name', edge_infer_column]
+        else: 
+            columns_to_exclude = ['id', 'name', label_column, edge_infer_column]
         node_features = [
-            col for col in hr_data.columns if col not in columns_to_exclude]
-        num_features = len(node_features)
+            col for col in nodes_data.columns if col not in columns_to_exclude]
         
-        unique_departments = hr_data['department'].unique()
-        num_classes = len(unique_departments)
+        num_features, num_classes = len(node_features), len(unique_infer_indicator)
 
-        # get features with number
-        features = processor.features_generator(hr_data, node_features)
+        # generate edges
+        edges_data = processor.edges_generator(nodes_data, edge_infer_column, edge_filepath)
+        
 
-        feature_index = processor.feature_index_generator(features)
+        # # get features with number
+        # features = processor.features_generator(nodes_data, node_features)
+        # feature_index = processor.feature_index_generator(features)
 
-        # process edges
-        if edge_filepath:
-            edges = processor.edges_generator(hr_data, edge_filepath)
-        else:
-            edges = processor.edges_generator(hr_data)
+        # # process edges
+        # if edge_filepath:
+        #     edges = processor.edges_generator(nodes_data, edge_filepath)
+        # else:
+        #     edges = processor.edges_generator(nodes_data)
 
-        edge_index = processor.edge_index_generator(edges)
-        # check if nan value exists
-        processor.nanCheck(hr_data, feature_index)
-
+        # edge_index = processor.edge_index_generator(edges)
+        # # check if nan value exists
+        # processor.nanCheck(nodes_data, feature_index)
+        
+    except Exception as e:
+        session['process_success'] = False
+        flash(f'Error: {str(e)}')
+    finally:
+        # Clear the session after processing is complete
+        session.pop('node_filepath', None)
+        session.pop('edge_filepath', None)
+    
+    return render_template('dataProcess.html', 
+                           label_column=label_column, 
+                           edge_infer_column=edge_infer_column,
+                           infer_required=infer_required)
+    
+# Implementation of graphSAGE
+@app.route('/process_with_graphsage')
+def process_with_graphsage():
+    try:
+        
         graphSAGEProcessor = GraphSAGE(num_features, 16, num_classes)
         
         # allowing using cuda to improve efficiency

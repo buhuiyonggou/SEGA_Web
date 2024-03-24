@@ -4,35 +4,51 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Select Column for Graph Inference</title>
-    <link
-    href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
-    rel="stylesheet"
-  />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Roboto:wght@500&display=swap"
-    rel="stylesheet"
-  />
-  <link
-    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
-    rel="stylesheet"
-  />
-  <link href="/static/styles.css" rel="stylesheet" />
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@500&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet">
+    <link href="/static/styles.css" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
-        <h1>Select Column for Graph Inference</h1>
-        <form action="/perform_inference" method="post"> 
+    <div class="container col-md-5">
+        <h2 class="text-center">Select Columns for Graph Inference</h1>
+        <form action="/perform_inference" method="post">
+          <div class="d-flex flex-column bd-highlight "> 
+            <div class="form-group mt-3">
+                <label class="col-form-label-lg" for="labelColumnSelect" >Select Label:</label>
+                <small id="labelHelp" class="form-text text-muted"
+                ><p>
+                  This column will be used as the label for the nodes in the graph. For example, if you select a column with "manager", then the graph will have nodes with manager as the label.
+                </p></small
+              >
+                <select class="form-control" id="labelColumnSelect" name="selectedLabelColumn">
+                    {% for column in columns %}
+                    <option value="{{ column }}">{{ column }}</option>
+                    {% endfor %}
+                </select> 
+            </div>
+            {% if infer_required %}
             <div class="form-group">
-                <label for="columnSelect">Select Column:</label>
-                <select class="form-control" id="columnSelect" name="selectedColumn">
+                <label class="col-form-label-lg" for="edgeInferColumnSelect">Select Column to Infer Edges:</label>
+                <small id="inferHelp" class="form-text text-muted"
+            ><p>
+              This column will be used to infer edges between nodes. For example, if you select a column with the name "class", then the graph will have edges within the same class.
+            </p></small
+          >
+                <select class="form-control" id="edgeInferColumnSelect" name="selectedEdgeInferColumn">
                     {% for column in columns %}
                     <option value="{{ column }}">{{ column }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <button type="submit" class="btn btn-primary">Infer Graph</button>
+            {% endif %}
+          </div>
+          
+          <div class="d-flex justify-content-around mt-4">
+            <button type="submit" class="btn btn-primary"> {% if infer_required %}Infer Graph {%else%}Use Label {% endif %}</button>
+            <button type="button" class="btn btn-warning custom-button-size" onclick="window.location.href='{{ url_for('upload_user_data') }}';">Back to Upload</button>
+          </div>
         </form>
     </div>
-    <!-- Include JavaScript files -->
 </body>
 </html>

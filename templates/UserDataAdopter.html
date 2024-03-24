@@ -273,7 +273,7 @@
           const relationshipFileInput = document.getElementById('relationshipFile');
   
           if (!relationshipFileInput.files.length) {
-              const userConfirmed = confirm("Social Network Explorer will infer the graph for you. Click 'OK' to proceed with inferred edges, or 'Cancel' to return and upload an edge file.");
+              const userConfirmed = confirm("No edges provided. Social Network Explorer will infer the graph for you.");
               
               if (!userConfirmed) {
                   event.preventDefault(); 
