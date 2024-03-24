@@ -44,7 +44,7 @@
         margin-left: 5px;
       }
       .custom-label-size {
-        font-size: 18px;
+        font-size: 20px;
       }
       .progress,
       .btn {
@@ -96,7 +96,7 @@
           <small id="eparticipantFileHelp" class="form-text text-muted"
             ><p>
               Please make sure your file contains column "<strong>id</strong>",
-              "<strong>name</strong>", and "<strong id="columnType">department</strong>"
+              "<strong>name</strong>"
             </p></small
           >
         </div>
@@ -113,23 +113,12 @@
             onchange="disableInputField('relationshipFile')"
           />
           <small id="relationshipFileHelp" class="form-text text-muted">
-            <p class="mt-n1">
+            <p >
               Please make sure your file contains column
-              "<strong>source</strong>", "<strong>target</strong>",
-            </p>
-            <p class="mt-n3">
-              and "<strong>a numric relationship</strong>"
+              "<strong>source</strong>", "<strong>target</strong>"
             </p></small
           >
         </div>
-
-        <div class="form-group d-flex flex-column align-items-center col-md-5 mx-auto">
-          <label for="userOption" class="custom-label-size ">Type of organization</label>  
-          <select class="form-control" id="userOption" name="userOption" onchange="updateMessage()">
-            <option value="enterprise">Enterprise</option>
-            <option value="education">Education Institution</option>
-          </select>
-      </div>
 
        {% with messages = get_flashed_messages(with_categories=true) %} {% if
         messages %}
@@ -212,7 +201,6 @@
         document
           .getElementById("relationshipFile")
           .classList.remove("disabled-input");
-        updateUploadButtonState();
       }
 
       function handleGoToAnalyze() {
@@ -252,15 +240,6 @@
         updateUploadButtonState();
       };
 
-      function updateMessage() {
-        var userOption = document.getElementById("userOption").value;
-        var columnType = document.getElementById("columnType");
-        if(userOption === "education") {
-            columnType.textContent = "class";
-        } else {
-            columnType.textContent = "department";
-        }
-    }
 
       window.onload = function () {
         var isUploadValid =
@@ -269,6 +248,32 @@
           alert("Upload failed. Please try again.");
         }
       };
+
+      window.addEventListener("pageshow", function (event) {
+            document.getElementById("fileUploadForm").reset();
+            document.getElementById("participantFile").classList.remove("disabled-input");
+            document.getElementById("relationshipFile").classList.remove("disabled-input");
+            document.getElementById("confirmUploadBtn").disabled = true;
+        }
+    );
+
+    $(document).ready(function () {
+      cancelUpload(); 
+  
+      $('#fileUploadForm').submit(function(event) {
+          const nodeFileInput = document.getElementById('participantFile');
+          const relationshipFileInput = document.getElementById('relationshipFile');
+  
+          if (!relationshipFileInput.files.length) {
+              const userConfirmed = confirm("Social Network Explorer will infer the graph for you. Click 'OK' to proceed with inferred edges, or 'Cancel' to return and upload an edge file.");
+              
+              if (!userConfirmed) {
+                  event.preventDefault(); 
+                  return false; 
+              }
+          }
+      });
+  });
     </script>
   </body>
 </html>

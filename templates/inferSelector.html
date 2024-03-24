@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Column for Graph Inference</title>
+    <link
+    href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Roboto:wght@500&display=swap"
+    rel="stylesheet"
+  />
+  <link
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
+    rel="stylesheet"
+  />
+  <link href="/static/styles.css" rel="stylesheet" />
+</head>
+<body>
+    <div class="container">
+        <h1>Select Column for Graph Inference</h1>
+        <form action="/perform_inference" method="post"> 
+            <div class="form-group">
+                <label for="columnSelect">Select Column:</label>
+                <select class="form-control" id="columnSelect" name="selectedColumn">
+                    {% for column in columns %}
+                    <option value="{{ column }}">{{ column }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Infer Graph</button>
+        </form>
+    </div>
+    <!-- Include JavaScript files -->
+</body>
+</html>

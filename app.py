@@ -6,6 +6,7 @@ from flask import Flask, get_flashed_messages, request, session, render_template
 import torch
 from werkzeug.utils import secure_filename
 from algorithms import calculate_centrality, detect_communities
+from upload_validation import load_graph_data, process_and_validate_files
 from graph_utils import draw_graph_with_pyvis, draw_shortest_path_graph, invert_weights
 from pyecharts import options as opts
 from pyecharts.charts import Tree
@@ -32,104 +33,43 @@ app.secret_key = 'BabaYaga'
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
-
 def allowed_file(filename):
     """Check if the uploaded file has an allowed extension."""
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Convert adjacency matrix to edge list
-
-
-def adjacency_to_edgelist(adj_matrix_df):
-    edges = []
-    for i, row in adj_matrix_df.iterrows():
-        for j, weight in row.items():  # Changed from iteritems() to items()
-            if weight != 0 and i != j:  # Assuming no self-loops and non-zero weight
-                edges.append((i, j, weight))
-    return pd.DataFrame(edges, columns=['Source', 'Target', 'Weight'])
-
-
-# Load graph data from a file
-def load_graph_data(filepath, file_extension):
-    try:
-        if file_extension.lower() == '.csv':
-            df = pd.read_csv(filepath)
-        elif file_extension.lower() == '.xlsx':
-            adj_matrix_df = pd.read_excel(filepath, index_col=0)
-            df = adjacency_to_edgelist(adj_matrix_df)
-        else:
-            raise ValueError("Unsupported file type.")
-
-        # Check if required columns are present
-        if not {'Source', 'Target', 'Weight'}.issubset(df.columns):
-            raise ValueError(
-                "Dataframe must contain 'Source', 'Target', and 'Weight' columns.")
-
-        # Sort by 'Weight' in descending order and select top 5000 rows
-        # df = df.sort_values(by='Weight', ascending=False).head(3000)
-
-        # Create graph from dataframe
-        G = nx.Graph()
-        for _, row in df.iterrows():
-            G.add_edge(row['Source'], row['Target'], weight=row['Weight'])
-
-        return df, G
-    except Exception as e:
-        # Handle any errors that occur during data loading
-        flash(str(e))  # Display the error message to the user
-        return None, None  # Return None values to indicate failure
-
-
 @app.route('/')
 def home():
     return render_template('Home.html')
-
 
 @app.route('/user_data_adoper', methods=['GET'])
 def upload_user_data():
     eb_algorithm = request.args.get('eb_algorithm', 'graphSAGE')
     return render_template('UserDataAdopter.html', eb_algorithm=eb_algorithm)
 
-
 @app.route('/user_upload', methods=['GET', 'POST'])
 def upload_data_store():
-    user_option = request.form.get('userOption')
-
     if request.method == 'POST':
         node_file = request.files.get('participantFile')
-        if node_file and allowed_file(node_file.filename):
-            node_filename = secure_filename(node_file.filename)
-
         edge_file = request.files.get('relationshipFile')
-        if edge_file and allowed_file(edge_file.filename):
-            edge_filename = secure_filename(edge_file.filename)
+        success, infer_required = process_and_validate_files(node_file, edge_file, app.config['RAW_DATA_FOLDER'])
 
-        # Save files and process
-        if node_file:
-            session['node_filepath'] = os.path.join(
-                app.config['RAW_DATA_FOLDER'], secure_filename(node_file.filename))
-            node_file.save(session['node_filepath'])
-            session['upload_success'] = True
-        if edge_file:
-            session['edge_filepath'] = os.path.join(
-                app.config['RAW_DATA_FOLDER'], secure_filename(edge_file.filename))
-            edge_file.save(session['edge_filepath'])
-        session['process_success'] = False
-
-        return redirect(url_for('confirm_edge_upload'))
-
-
-@app.route('/confirm_edge_upload')
-def confirm_edge_upload():
-    if 'node_filepath' not in session:
-        flash('No participant file detected. Please upload the required files.', 'error')
-        return redirect(url_for('upload_user_data'))
-    elif 'node_filepath' in session and 'edge_filepath' not in session:
-        flash('No edge file detected. Proceeding with inferred graph. You can upload an edge file to improve model accuracy.', 'warning')
+        if not success:
+            return redirect(url_for('upload_user_data'))
+        else:
+            # Use query parameter to pass infer_required status
+            return redirect(url_for('graph_infer', infer=infer_required))
     else:
-        flash('Files successfully uploaded.', 'success')
-    return render_template('dataProcess.html', edge_file_provided='edge_filepath' in session)
+        return redirect(url_for('upload_user_data'))
+
+@app.route('/column_validation')
+
+
+
+@app.route('/graph_infer')
+def graph_infer():
+    infer_required = request.args.get('infer', default='False', type=str) == 'True'
+    return render_template('inferSelector.html', infer_required=infer_required)
 
 
 # Implementation of graphSAGE
@@ -320,7 +260,6 @@ def data_process_node2vec():
         session.pop('edge_filepath', None)
 
     return render_template('dataProcess.html', process_success=session.get('process_success', False), plot = False)
-
 
 @app.route('/training_progress')
 def training_progress():
