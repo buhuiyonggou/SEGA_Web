@@ -6,7 +6,7 @@ from flask import Flask, get_flashed_messages, request, session, render_template
 import torch
 from werkzeug.utils import secure_filename
 from algorithms import calculate_centrality, detect_communities
-from upload_validation import load_graph_data, process_and_validate_files
+from upload_validation import column_validation, load_graph_data, process_and_validate_files
 from graph_utils import draw_graph_with_pyvis, draw_shortest_path_graph, invert_weights
 from pyecharts import options as opts
 from pyecharts.charts import Tree
@@ -56,21 +56,28 @@ def upload_data_store():
 
         if not success:
             return redirect(url_for('upload_user_data'))
-        else:
-            # Use query parameter to pass infer_required status
-            return redirect(url_for('graph_infer', infer=infer_required))
-    else:
-        return redirect(url_for('upload_user_data'))
+        
+        # Column validation
+        node_filepath = session.get('node_filepath')
+        edge_filepath = session.get('edge_filepath', None)
+        
+        # processor = DataProcessor(node_filepath, edge_filepath) 
+        column_validation_success, message = column_validation( node_filepath, edge_filepath)
+        
+        if not column_validation_success:
+            flash(message, 'error')
+            return redirect(url_for('upload_user_data'))
 
-@app.route('/column_validation')
-
-
+        flash(message, 'success')
+        return redirect(url_for('graph_infer', infer='True' if infer_required else 'False'))
+    return redirect(url_for('upload_user_data'))
 
 @app.route('/graph_infer')
 def graph_infer():
     infer_required = request.args.get('infer', default='False', type=str) == 'True'
+    # validate if required columns exist 
+    
     return render_template('inferSelector.html', infer_required=infer_required)
-
 
 # Implementation of graphSAGE
 @app.route('/process_graphsage')
@@ -93,7 +100,7 @@ def data_process():
             flash("Sorry, document data cannot be found.")
 
         # process features
-        hr_data = processor.rename_columns_to_standard_1(
+        hr_data = processor.rename_columns_to_standard_graphSAGE(
             hr_data, processor.COLUMN_ALIGNMENT)
 
         if 'id' not in hr_data.columns:
@@ -190,7 +197,7 @@ def data_process_node2vec():
 
         # Load and preprocess the data
         hr_data = processor.fetch_data_from_user(node_filepath)
-        hr_data = processor.rename_columns_to_standard_2(
+        hr_data = processor.rename_columns_to_standard_node2vec(
             hr_data, processor.COLUMN_ALIGNMENT)
 
         # Define node features for processing

@@ -24,18 +24,6 @@ class DataProcessor:
         self.NODE_FEATURES = []
         self.epoches = 200
 
-    def load_data(self, file_path):
-        if file_path.endswith('.csv'):
-            # Handles BOM if present
-            df = pd.read_csv(file_path, encoding='utf-8')
-        elif file_path.endswith('.xlsx'):
-            df = pd.read_excel(file_path)
-        else:
-            raise ValueError("Unsupported file format")
-
-        df.columns = df.columns.str.lower()
-        return df
-
     def fetch_data_from_user(self, file_path):
         if file_path is None:
             raise ValueError("File path is None")
@@ -55,7 +43,7 @@ class DataProcessor:
 
         return df
 
-    def rename_columns_to_standard_1(self, df, column_alignment):
+    def rename_columns_to_standard_graphSAGE(self, df, column_alignment):
         df_copy = df.copy()    
         
         for standard_name, variations in column_alignment.items():
@@ -70,7 +58,7 @@ class DataProcessor:
         return df_copy
 
     # Function to rename columns based on expected variations
-    def rename_columns_to_standard_2(self, df, column_alignment):
+    def rename_columns_to_standard_node2vec(self, df, column_alignment):
         # Dictionary to hold new column names
         new_column_names = {}
 

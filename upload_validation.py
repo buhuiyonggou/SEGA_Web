@@ -3,6 +3,7 @@ from flask import flash, session
 import pandas as pd
 import networkx as nx
 from werkzeug.utils import secure_filename
+from DataProcessor import DataProcessor
 
 def adjacency_to_edgelist(adj_matrix_df):
     edges = []
@@ -64,4 +65,32 @@ def process_and_validate_files(node_file, edge_file, raw_data_folder):
         return False, infer_required
     
     return True, infer_required
+
+
+def column_validation(node_filepath, edge_filepath=None):
+    required_node_columns = {'id', 'name'}
+    required_edge_columns = {'source', 'target'}
+    processor = DataProcessor(node_filepath, edge_filepath) 
+    
+    try:
+        if node_filepath:
+            node_df = processor.fetch_data_from_user(node_filepath)
+            node_df_columns_lower = {col.lower() for col in node_df.columns} 
+            if not required_node_columns.issubset(node_df_columns_lower):
+                missing_cols = required_node_columns - node_df_columns_lower
+                missing_cols_str = ', '.join(missing_cols).capitalize() 
+                return False, f"Node file is missing required columns: {missing_cols_str}"
+        
+        if edge_filepath:
+            edge_df = processor.fetch_data_from_user(edge_filepath)
+            edge_df_columns_lower = {col.lower() for col in edge_df.columns} 
+            if not required_edge_columns.issubset(edge_df_columns_lower):
+                missing_cols = required_edge_columns - edge_df_columns_lower
+                missing_cols_str = ', '.join(missing_cols).capitalize() 
+                return False, f"Failed! Edge file is missing required columns: {missing_cols_str}"
+                
+        return True, "Files successfully validated."
+    
+    except Exception as e:
+        return False, f"An error occurred during file validation: {str(e)}"
 
