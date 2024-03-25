@@ -26,7 +26,7 @@ app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 RAW_DATA_FOLDER = 'raw_data'
 ALLOWED_EXTENSIONS = {'csv', 'xlsx'}
-EPOCHES = 200
+EPOCHES = 300
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['RAW_DATA_FOLDER'] = RAW_DATA_FOLDER
 app.secret_key = 'BabaYaga'
@@ -104,6 +104,9 @@ def data_process_panel():
     edge_infer_column = session.get('selected_edge_infer_column').lower()
     infer_required = session.get('infer_required') == 'True'
     
+    graph_data = None
+    num_features = 0
+    num_classes = 0
     try:
         node_filepath = session.get('node_filepath')
         edge_filepath = session.get('edge_filepath')
@@ -120,15 +123,16 @@ def data_process_panel():
         
         if nodes_data.empty:
             logging.error("Sorry, document data cannot be found.")
+            return redirect(url_for('upload_page'))
         
         # process features
         nodes_data = processor.rename_columns_to_standard_graphSAGE(
             nodes_data, processor.COLUMN_ALIGNMENT)
-        
         # store index map
         index_to_name_mapping = processor.create_index_id_name_mapping(nodes_data, edge_infer_column)
         
         unique_infer_indicator = nodes_data[edge_infer_column].unique()
+        unqiue_label = nodes_data[label_column].unique()
         
         # # store a list of all given label
         # departments_list = index_to_name_mapping['department'].tolist()
@@ -141,26 +145,33 @@ def data_process_panel():
         node_features = [
             col for col in nodes_data.columns if col not in columns_to_exclude]
         
-        num_features, num_classes = len(node_features), len(unique_infer_indicator)
+        # store a list of all given label
+        
+        # column numbers and category of infer indicator
+        num_features, num_labels, num_infers = len(node_features), len(unqiue_label), len(unique_infer_indicator)
 
         # generate edges
         edges_data = processor.edges_generator(nodes_data, edge_infer_column, edge_filepath)
+        edge_index = processor.edge_index_generator(edges_data)
         
-
-        # # get features with number
-        # features = processor.features_generator(nodes_data, node_features)
-        # feature_index = processor.feature_index_generator(features)
-
-        # # process edges
-        # if edge_filepath:
-        #     edges = processor.edges_generator(nodes_data, edge_filepath)
-        # else:
-        #     edges = processor.edges_generator(nodes_data)
-
-        # edge_index = processor.edge_index_generator(edges)
-        # # check if nan value exists
-        # processor.nanCheck(nodes_data, feature_index)
+        # generate features
+        x, labels = processor.numeric_dataset(nodes_data, node_features, label_column)
+        # check if nan value exists
+        flash(processor.nanCheck(nodes_data, x))
         
+        # create train and test mask
+        num_rows = nodes_data.shape[0]
+        
+        graph_data = processor.construct_graph_data(num_rows, edge_index, x, labels)
+        
+        # save graph data
+        graph_data_file = 'processed_graph/graph_data.pt'
+        torch.save(graph_data, graph_data_file)
+        session['graph_data_file'] = graph_data_file
+        session['num_features'] = num_features
+        session['num_labels'] = num_labels
+        
+        # session['label_names'] = unique_infer_indicator.tolist()
     except Exception as e:
         session['process_success'] = False
         flash(f'Error: {str(e)}')
@@ -170,49 +181,60 @@ def data_process_panel():
         session.pop('edge_filepath', None)
     
     return render_template('dataProcess.html', 
-                           label_column=label_column, 
-                           edge_infer_column=edge_infer_column,
-                           infer_required=infer_required)
+                           graph = graph_data,
+                           num_features=num_features,
+                           num_labels=num_labels)
     
 # Implementation of graphSAGE
-@app.route('/process_with_graphsage')
+@app.route('/process_graphsage', methods=['GET', 'POST'])
 def process_with_graphsage():
+    graph_data_file = session.get('graph_data_file')
+    num_features = session.get('num_features')
+    num_labels = session.get('num_labels')
+    # labels = session.get('label_names')
+        
+    if not graph_data_file or num_features is None or num_labels is None:
+        logging.error('Missing data for processing.')
+        return redirect(url_for('data_process_panel'))
     try:
+        graph_data = torch.load(graph_data_file)
+        flash('GraphSAGE processing completed successfully', 'success')
+        os.remove(graph_data_file)
+        session.pop('graph_data_file', None)
+        session.pop('num_features', None)
+        session.pop('num_classes', None)
+        # session.pop('label_names', None)
         
-        graphSAGEProcessor = GraphSAGE(num_features, 16, num_classes)
+        graphSAGEProcessor = GraphSAGE(in_channels=num_features, hidden_channels=16, out_channels=num_labels) 
         
-        # allowing using cuda to improve efficiency
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        graphSAGEProcessor = graphSAGEProcessor.to(device)
-        
-        embeddings = graphSAGEProcessor.model_training(graphSAGEProcessor, device, feature_index, edge_index, EPOCHES)
+        embeddings = graphSAGEProcessor.model_training(graphSAGEProcessor, graph_data, EPOCHES)
         # generating validation plot
-        graphSAGEProcessor.generate_tsne_plot(embeddings, departments_list)
+        # graphSAGEProcessor.generate_tsne_plot(embeddings, labels)
         
-        edge_embeddings_start = embeddings[edge_index[0]]
-        edge_embeddings_end = embeddings[edge_index[1]]
+        # edge_embeddings_start = embeddings[edge_index[0]]
+        # edge_embeddings_end = embeddings[edge_index[1]]
         
-        raw_weights = torch.norm(edge_embeddings_start - edge_embeddings_end, dim=1).cpu().numpy()
-        edges_with_weights = pd.DataFrame(edge_index.t().cpu().numpy(), columns=['Source', 'Target'])
-        edges_with_weights['Weight'] = raw_weights
+        # raw_weights = torch.norm(edge_embeddings_start - edge_embeddings_end, dim=1).cpu().numpy()
+        # edges_with_weights = pd.DataFrame(edge_index.t().cpu().numpy(), columns=['Source', 'Target'])
+        # edges_with_weights['Weight'] = raw_weights
         
-        index_to_name_dict = index_to_name_mapping.set_index('index')['name'].to_dict()
+        # index_to_name_dict = index_to_name_mapping.set_index('index')['name'].to_dict()
         
-        edges_with_weights['Source'] = edges_with_weights['Source'].map(index_to_name_dict)
-        edges_with_weights['Target'] = edges_with_weights['Target'].map(index_to_name_dict)
+        # edges_with_weights['Source'] = edges_with_weights['Source'].map(index_to_name_dict)
+        # edges_with_weights['Target'] = edges_with_weights['Target'].map(index_to_name_dict)
 
         # Save the DataFrame to a CSV file
-        try:
-            output_path = UPLOAD_FOLDER + '/weighted_graph.csv'
-            edges_with_weights.to_csv(output_path, index=False)
-            message = "Process Status: Congragulations! You data has successfully processed."
-        except Exception as message:
-            flash(f'Error: output {str(message)}')
-        finally:
-            flash(message)
-            session['process_success'] = True
-            session['data_processed'] = True
-            session['processed_file'] = 'weighted_graph.csv'
+        # try:
+        #     output_path = UPLOAD_FOLDER + '/weighted_graph.csv'
+        #     edges_with_weights.to_csv(output_path, index=False)
+        #     message = "Process Status: Congragulations! You data has successfully processed."
+        # except Exception as message:
+        #     flash(f'Error: output {str(message)}')
+        # finally:
+        #     flash(message)
+        #     session['process_success'] = True
+        #     session['data_processed'] = True
+        #     session['processed_file'] = 'weighted_graph.csv'
     except Exception as e:
         session['process_success'] = False
         flash(f'Error: {str(e)}')
@@ -309,11 +331,6 @@ def data_process_node2vec():
 
     return render_template('dataProcess.html', process_success=session.get('process_success', False), plot = False)
 
-@app.route('/training_progress')
-def training_progress():
-    progress = session.get('training_progress', 'Not started')
-    return jsonify({'progress': progress})
-
 @app.route('/download_processed_file')
 def download_processed_file():
     processed_file = session.get('processed_file')
@@ -324,7 +341,6 @@ def download_processed_file():
     else:
         flash('No processed file available for download.')
         return redirect(url_for('data_process'))
-
 
 @app.route('/analyze')
 def analyze():

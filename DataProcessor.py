@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from itertools import combinations
 import torch
+from torch_geometric.data import Data
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from sklearn.impute import SimpleImputer
 import logging
@@ -125,10 +126,10 @@ class DataProcessor:
             if edge_infer is None:
                 logging.error("Edge infer column is None")
             for each in node_data[edge_infer].unique():
-                dept_indices = node_data[node_data[edge_infer]
+                column_indices = node_data[node_data[edge_infer]
                                         == each].index.tolist()
                 self.manage_edge_probability(
-                    edges, node_data, dept_indices, edge_infer)
+                    edges, node_data, column_indices, edge_infer)
         return edges
 
     def edge_index_generator(self, edges):
@@ -156,28 +157,26 @@ class DataProcessor:
         x = torch.tensor(df[node_features].values, dtype=torch.float)
 
         return x, labels
-    
-    def features_generator(self, hr_data, node_features):
-        hr_data_parsed = self.numeric_dataset(hr_data, node_features)
-        # Exclude 'id' and 'name' columns from features
-        feature_columns = [
-            col for col in hr_data.columns if col in node_features]
 
-        features_data = hr_data_parsed[feature_columns].values
-
-        return features_data
-
-    def feature_index_generator(self, features):
-        feature_index = torch.tensor(features, dtype=torch.float)
-
-        return feature_index
-
-    def nanCheck(self, hr_data, feature_index):
+    def nanCheck(self, node_data, feature_index):
         # Check for NaN values in features
         if torch.isnan(feature_index).any():
-            nan_columns = hr_data.columns[hr_data.isnull().any()].tolist()
+            nan_columns = node_data.columns[node_data.isnull().any()].tolist()
             raise ValueError(
                 f"NaN values detected in columns: {', '.join(nan_columns)}")
         return "No NaN values detected."
 
-    
+    def construct_graph_data(self, num_rows, edge_index, x, y):
+        train_mask = torch.zeros(num_rows, dtype=torch.bool)
+        val_mask = torch.zeros(num_rows, dtype=torch.bool)
+        test_mask = torch.zeros(num_rows, dtype=torch.bool)
+        
+        indices = np.random.permutation(num_rows)
+        train_size = int(0.7 * num_rows)
+        val_size = int(0.2 * num_rows)
+        train_mask[indices[:train_size]] = True
+        val_mask[indices[train_size:train_size+val_size]] = True
+        test_mask[indices[train_size+val_size:]] = True
+        
+        graph_data = Data(x=x, edge_index=edge_index, y=y, train_mask=train_mask, val_mask=val_mask, test_mask=test_mask)
+        return graph_data

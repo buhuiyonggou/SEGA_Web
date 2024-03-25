@@ -1,4 +1,5 @@
 import matplotlib
+import pandas as pd
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,64 +19,66 @@ class GraphSAGE(torch.nn.Module):
         x = self.conv1(x, edge_index).relu()
         x = self.conv2(x, edge_index)
         return x
-    
-    def contrastive_loss(self, out, edge_index, num_neg_samples=None):
-        # Positive samples: directly connected nodes
-        pos_loss = F.pairwise_distance(
-            out[edge_index[0]], out[edge_index[1]]).pow(2).mean()
 
-        # Negative sampling: randomly select pairs of nodes that are not directly connected
-        num_nodes = out.size(0)
-        num_neg_samples = num_neg_samples or edge_index.size(1)
-        neg_edge_index = torch.randint(
-            0, num_nodes, (2, num_neg_samples), dtype=torch.long, device=out.device)
-
-        neg_loss = F.relu(
-            1 - F.pairwise_distance(out[neg_edge_index[0]], out[neg_edge_index[1]])).pow(2).mean()
-
-        loss = pos_loss + neg_loss
-        return loss
-
-    def model_training(self, model, device, feature_index, edge_index, epoches):
-        data = Data(x=feature_index, edge_index=edge_index)
+    def model_training(self, model, graph_data, epoches):
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        model = model.to(device)
+        graph_data = graph_data.to(device)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
+        criterion = torch.nn.CrossEntropyLoss()
         
-        data = data.to(device)
-        optimizer = torch.optim.Adam(self.parameters(), lr=0.01, weight_decay=5e-4)
-        model.train()
+        def train():
+                model.train()
+                optimizer.zero_grad()
+                out = model(graph_data.x, graph_data.edge_index)
+                # Only use nodes with labels available for loss calculation --> mask
+                unique_labels = torch.unique(graph_data.y[graph_data.train_mask])
+                print("Unique labels in training data:", unique_labels)
+                
+                loss = criterion(out[graph_data.train_mask], graph_data.y[graph_data.train_mask])
+                loss.backward()
+                optimizer.step()
+                return loss
         
-        # Training loop
-        for epoch in range(epoches):
-            optimizer.zero_grad()
-            out = model(data.x, data.edge_index)
-            loss = model.contrastive_loss(out, data.edge_index)
+        def test():
+            model.eval()
+            out = model(graph_data.x, graph_data.edge_index)
+            # Check against ground-truth labels.
+            pred = out.argmax(dim=1)
 
-            # backup for supervised learning
-            # loss = F.nll_loss(out[data.train_mask], data.y[data.train_mask])
-            loss.backward() 
-            optimizer.step()
-            if (epoch+1) % 10 == 0:
-                print(f'Epoch {epoch+1}, Loss: {loss.item()}')
+            test_correct = pred[graph_data.test_mask] == graph_data.y[graph_data.test_mask]
+            # Derive ratio of correct predictions.
+            test_acc = int(test_correct.sum()) / int(graph_data.test_mask.sum())
+            return test_acc
 
+        losses = []
+        for epoch in range(0, epoches + 1):
+            loss = train()
+            losses.append(loss)
+            if (epoch + 1) % 10 == 0:
+                print(f'Epoch: {(epoch + 1):03d}, Loss: {loss:.6f}')
+        test_acc = test()
+        print(f'Test Accuracy: {test_acc:.6f}')
+        
         model.eval()
         with torch.no_grad():
-            embeddings = model(data.x, data.edge_index)
+            embeddings = model(graph_data.x, graph_data.edge_index)
 
         return embeddings
-
-    def generate_tsne_plot(self, embeddings, departments_list, file_path='tsne_plot_graphSAGE.png'):
-        departments_array = np.array(departments_list)
-
-        tsne = TSNE(n_components=2, perplexity=30, n_iter=300)
-        tsne_results = tsne.fit_transform(embeddings)
-
-        plt.figure(figsize=(16, 10))
-        for dept in set(departments_array):
-            idx = departments_array == dept
-            plt.scatter(tsne_results[idx, 0], tsne_results[idx, 1], label=dept)
-        plt.legend()
-        plt.title("GraphSAGE Embeddings Visualized by Department")
-        plt.xlabel("TSNE-1")
-        plt.ylabel("TSNE-2")
         
-        plt.savefig(file_path)
-        plt.close()
+    # def generate_tsne_plot(self, embeddings, labels, file_path='tsne_plot_graphSAGE.png'):
+    #     tsne = TSNE(n_components=2, perplexity=30, n_iter=300)
+    #     tsne_results = tsne.fit_transform(embeddings)
+
+    #     plt.figure(figsize=(16, 10))
+    #     for label in set(labels):
+    #         idx = np.where(labels == label)
+    #         plt.scatter(tsne_results[idx, 0], tsne_results[idx, 1], label=label)
+    #     plt.legend()
+    #     plt.title("GraphSAGE Embeddings Visualized by Department")
+    #     plt.xlabel("TSNE-1")
+    #     plt.ylabel("TSNE-2")
+        
+    #     plt.savefig(file_path)
+    #     plt.close()
+        
