@@ -65,7 +65,7 @@ def upload_data_store():
         column_validation_success, message = column_validation( node_filepath, edge_filepath)
         
         if not column_validation_success:
-            flash(message, 'error')
+            flash(f"Error: {message}", 'error') 
             return redirect(url_for('upload_user_data'))
 
         return redirect(url_for('graph_infer', infer='True' if infer_required else 'False'))
@@ -133,9 +133,7 @@ def data_process_panel():
         
         unique_infer_indicator = nodes_data[edge_infer_column].unique()
         unqiue_label = nodes_data[label_column].unique()
-        
         # # store a list of all given label
-        # departments_list = index_to_name_mapping['department'].tolist()
         
         # prepare num_features and num_classes for visualization of validation
         if label_column == edge_infer_column:
@@ -144,8 +142,6 @@ def data_process_panel():
             columns_to_exclude = ['id', 'name', label_column, edge_infer_column]
         node_features = [
             col for col in nodes_data.columns if col not in columns_to_exclude]
-        
-        # store a list of all given label
         
         # column numbers and category of infer indicator
         num_features, num_labels, num_infers = len(node_features), len(unqiue_label), len(unique_infer_indicator)
@@ -170,8 +166,7 @@ def data_process_panel():
         session['graph_data_file'] = graph_data_file
         session['num_features'] = num_features
         session['num_labels'] = num_labels
-        
-        # session['label_names'] = unique_infer_indicator.tolist()
+        session['label_names'] = unqiue_label.tolist()
     except Exception as e:
         session['process_success'] = False
         flash(f'Error: {str(e)}')
@@ -183,7 +178,8 @@ def data_process_panel():
     return render_template('dataProcess.html', 
                            graph = graph_data,
                            num_features=num_features,
-                           num_labels=num_labels)
+                           num_labels=num_labels,
+                           label_names=unqiue_label.tolist())
     
 # Implementation of graphSAGE
 @app.route('/process_graphsage', methods=['GET', 'POST'])
@@ -191,7 +187,7 @@ def process_with_graphsage():
     graph_data_file = session.get('graph_data_file')
     num_features = session.get('num_features')
     num_labels = session.get('num_labels')
-    # labels = session.get('label_names')
+    labels = session.get('label_names')
         
     if not graph_data_file or num_features is None or num_labels is None:
         logging.error('Missing data for processing.')
@@ -203,13 +199,13 @@ def process_with_graphsage():
         session.pop('graph_data_file', None)
         session.pop('num_features', None)
         session.pop('num_classes', None)
-        # session.pop('label_names', None)
+        session.pop('label_names', None)
         
         graphSAGEProcessor = GraphSAGE(in_channels=num_features, hidden_channels=16, out_channels=num_labels) 
         
         embeddings = graphSAGEProcessor.model_training(graphSAGEProcessor, graph_data, EPOCHES)
         # generating validation plot
-        # graphSAGEProcessor.generate_tsne_plot(embeddings, labels)
+        graphSAGEProcessor.generate_tsne_plot(embeddings, labels)
         
         # edge_embeddings_start = embeddings[edge_index[0]]
         # edge_embeddings_end = embeddings[edge_index[1]]

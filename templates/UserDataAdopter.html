@@ -82,6 +82,18 @@
         method="post"
         enctype="multipart/form-data"
       >
+      {% with messages = get_flashed_messages(category_filter=["error"]) %}
+    {% if messages %}
+      <div id= "errorMessage" class="alert alert-danger text-center rounded-pill" role="alert">
+        {% for message in messages %}
+          {{ message }}
+        {% endfor %}
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+    {% endif %}
+  {% endwith %}
         <div class="form-group text-center">
           <label for="participantFile" class="custom-label-size"
             >1. Participant Document
@@ -216,6 +228,7 @@
       document.getElementById("relationshipFile").onchange = function () {
         validateFileType("relationshipFile");
         disableInputField("relationshipFile");
+
       };
 
       function updateUploadButtonState() {
@@ -263,7 +276,6 @@
           }
       }
   );
-
 
     $(document).ready(function () {
       cancelUpload(); 

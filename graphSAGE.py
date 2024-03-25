@@ -33,7 +33,6 @@ class GraphSAGE(torch.nn.Module):
                 out = model(graph_data.x, graph_data.edge_index)
                 # Only use nodes with labels available for loss calculation --> mask
                 unique_labels = torch.unique(graph_data.y[graph_data.train_mask])
-                print("Unique labels in training data:", unique_labels)
                 
                 loss = criterion(out[graph_data.train_mask], graph_data.y[graph_data.train_mask])
                 loss.backward()
@@ -66,19 +65,19 @@ class GraphSAGE(torch.nn.Module):
 
         return embeddings
         
-    # def generate_tsne_plot(self, embeddings, labels, file_path='tsne_plot_graphSAGE.png'):
-    #     tsne = TSNE(n_components=2, perplexity=30, n_iter=300)
-    #     tsne_results = tsne.fit_transform(embeddings)
+    def generate_tsne_plot(self, embeddings, labels, file_path='tsne_plot_graphSAGE.png'):
+        tsne = TSNE(n_components=2, perplexity=30, n_iter=300)
+        tsne_results = tsne.fit_transform(embeddings)
 
-    #     plt.figure(figsize=(16, 10))
-    #     for label in set(labels):
-    #         idx = np.where(labels == label)
-    #         plt.scatter(tsne_results[idx, 0], tsne_results[idx, 1], label=label)
-    #     plt.legend()
-    #     plt.title("GraphSAGE Embeddings Visualized by Department")
-    #     plt.xlabel("TSNE-1")
-    #     plt.ylabel("TSNE-2")
+        plt.figure(figsize=(16, 10))
+        for label in set(labels):
+            idx = np.where(labels == label)
+            plt.scatter(tsne_results[idx, 0], tsne_results[idx, 1], label=label)
+        plt.legend()
+        plt.title("GraphSAGE Embeddings Visualized by Department")
+        plt.xlabel("TSNE-1")
+        plt.ylabel("TSNE-2")
         
-    #     plt.savefig(file_path)
-    #     plt.close()
+        plt.savefig(file_path)
+        plt.close()
         
