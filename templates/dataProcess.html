@@ -70,10 +70,10 @@
       </div>
       {% endif %} {% endwith %}
       <div class="d-flex justify-content-around mb-3">
-      <button id="graphSAGEProcess processButton" class="btn btn-primary mt-3" onclick="handleSubmit('/process_graphsage')" {% if session.get('process_success', False) %}disabled{% endif %}>
+      <button id="graphSAGEProcess processButton" class="btn btn-primary mt-3" onclick="handleSubmit('/process_graphsage')" {% if session.get('enable_process', False) %}disabled{% endif %}>
         Process with GraphSAGE
       </button>
-      <button id="node2VecProcess processButton" class="btn btn-warning mt-3" onclick="handleSubmit('/process_node2vec')"{% if session.get('process_success', False) %}disabled{% endif %}>
+      <button id="node2VecProcess processButton" class="btn btn-warning mt-3" onclick="handleSubmit('/process_node2vec')"{% if session.get('enable_process', False) %}disabled{% endif %}>
         Process with Node2Vec
       </button>
       </div>
@@ -94,11 +94,11 @@
 
       <div class="d-flex justify-content-around">
         <button id="downloadButton" class="btn btn-info mt-3" onclick="downloadProcessedFile()"
-        {% if not session.get('upload_success', False) or not session.get('process_success', False) %}disabled{% endif %}>
+        {% if not session.get('enable_download', False) %}disabled{% endif %}>
     Download CSV
 </button>
 <button id="goVisualizationDataUpload" class="btn btn-success mt-3" onclick="handleGoAnalyze()" {% if not
-  session.get('data_processed', False) %}disabled{% endif %}>
+  session.get('enable_analyze', False) %}disabled{% endif %}>
   Go to Analyze
 </button>
 
