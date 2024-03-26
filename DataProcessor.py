@@ -141,6 +141,7 @@ class DataProcessor:
         le = LabelEncoder()
         scaler = MinMaxScaler()
         imputer = SimpleImputer(strategy='mean')
+
         for column in node_features:
             if df[column].dtype == 'object':
                 df[column] = le.fit_transform(df[column].astype(str))
@@ -151,9 +152,13 @@ class DataProcessor:
                 
         # Encode labels
         if df[label_column].dtype == 'object':
+            # print(f"Non-numeric values in label column '{label_column}':", df[label_column].unique())
             df[label_column] = le.fit_transform(df[label_column].astype(str))
-            
+        
         labels = torch.tensor(df[label_column].values, dtype=torch.long)
+        # adjust labels to start from 0
+        if labels.min() != 0:
+            labels = labels - labels.min()
         x = torch.tensor(df[node_features].values, dtype=torch.float)
 
         return x, labels

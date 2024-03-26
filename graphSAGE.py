@@ -20,7 +20,7 @@ class GraphSAGE(torch.nn.Module):
         x = self.conv2(x, edge_index)
         return x
 
-    def model_training(self, model, graph_data, epoches):
+    def model_training(self, model, graph_data, num_labels,epoches):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         model = model.to(device)
         graph_data = graph_data.to(device)
@@ -32,8 +32,9 @@ class GraphSAGE(torch.nn.Module):
                 optimizer.zero_grad()
                 out = model(graph_data.x, graph_data.edge_index)
                 # Only use nodes with labels available for loss calculation --> mask
-                unique_labels = torch.unique(graph_data.y[graph_data.train_mask])
-                
+                # unique_labels = torch.unique(graph_data.y[graph_data.train_mask])
+                # print("Unique labels:", unique_labels)
+                # print("Expected range of labels:", list(range(num_labels)))
                 loss = criterion(out[graph_data.train_mask], graph_data.y[graph_data.train_mask])
                 loss.backward()
                 optimizer.step()

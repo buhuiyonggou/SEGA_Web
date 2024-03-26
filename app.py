@@ -118,7 +118,6 @@ def data_process_panel():
     if session.get('selected_edge_infer_column'):
         edge_infer_column = session.get('selected_edge_infer_column').lower()
 
-    infer_required = session.get('infer_required') == 'True'
     try:
         node_filepath = session.get('node_filepath')
         edge_filepath = session.get('edge_filepath')
@@ -145,6 +144,7 @@ def data_process_panel():
             nodes_data, processor.COLUMN_ALIGNMENT)
         # store index map
         index_to_name_mapping = processor.create_index_id_name_mapping(nodes_data, edge_infer_column)
+        
         # save index map to processed graph
         try:
             mapping_path = os.path.join(PROCESSED_GRAPH_FOLDER, 'edge_mapping.csv')
@@ -155,12 +155,14 @@ def data_process_panel():
             flash(f'Error: output {str(message)}')
 
         if edge_infer_column:
-            unique_infer_categories = nodes_data[edge_infer_column].unique()
+            unique_infer_categories = nodes_data[edge_infer_column].unique().tolist()
+        else:
+            unique_infer_categories = None
         
         unique_label = nodes_data[label_column].unique().tolist()
         
         # prepare num_features and num_classes for visualization of validation
-        if label_column == edge_infer_column:
+        if label_column == edge_infer_column or edge_infer_column is None:
             columns_to_exclude = ['id', 'name', edge_infer_column]
         else: 
             columns_to_exclude = ['id', 'name', label_column, edge_infer_column]
@@ -169,6 +171,9 @@ def data_process_panel():
         
         # column numbers and category of infer indicator
         num_features, num_labels= len(node_features), len(unique_label)
+        
+        if edge_infer_column:
+            num_infers = len(unique_infer_categories)
 
         # generate edges
         edges_data = processor.edges_generator(nodes_data, edge_infer_column, edge_filepath)
@@ -211,9 +216,9 @@ def data_process_panel():
                            num_labels=num_labels,
                            num_infers=num_infers,
                            label_names=unique_label,
-                           process_success=session.get('enable_process', False),
-                           enable_download=session.get('enable_download', False),
-                            enable_analyze=session.get('enable_analyze', False))    
+                           process_success=session.get('enable_process'),
+                           enable_download=session.get('enable_download'),
+                            enable_analyze=session.get('enable_analyze'))    
                            
     
 # Implementation of graphSAGE
@@ -250,7 +255,7 @@ def process_with_graphsage():
         
         graphSAGEProcessor = GraphSAGE(in_channels=num_features, hidden_channels=16, out_channels=num_labels) 
         
-        embeddings = graphSAGEProcessor.model_training(graphSAGEProcessor, graph_data, EPOCHES)
+        embeddings = graphSAGEProcessor.model_training(graphSAGEProcessor, graph_data, num_labels, EPOCHES)
         if embeddings is None:
             logging.error('Error in generating embeddings.')
             return redirect(url_for('data_process_panel'))
@@ -291,9 +296,9 @@ def process_with_graphsage():
         # Clear the session after processing is complete
         session.pop('node_filepath', None)
         session.pop('edge_filepath', None)
-    return render_template('dataProcess.html', process_success=session.get('enable_process', True),
-                            download_success=session.get('enable_download', True),
-                            analyze_success=session.get('enable_analyze', True))   
+    return render_template('dataProcess.html', process_success=session.get('enable_process'),
+                            download_success=session.get('enable_download'),
+                            analyze_success=session.get('enable_analyze'))   
                            
 
 @app.route('/process_node2vec')

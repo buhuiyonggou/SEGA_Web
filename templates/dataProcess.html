@@ -134,7 +134,7 @@
         }, 500); 
       }
       
-       var dataProcessed = {{ 'true' if session.get('data_processed', False) else 'false' }};
+       var dataProcessed = {{ 'true' if session.get('enable_analyze', False) else 'false' }};
 
         function handleGoAnalyze() {
           if (dataProcessed) {
