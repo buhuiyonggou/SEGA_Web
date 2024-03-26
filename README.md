@@ -28,15 +28,18 @@ TBD
 Follow these steps to get started with SEGA_Web:
 
 1. We accept both CSV and XLSX files for parsing and embedding data.
-2. The application requires a file containing members and their attributes. Three columns are mandatory: `id`, `name`, and `department`. The app can infer your network graph if it is not provided.
-3. To optimize model performance, you can provide your own network graph with columns `source`, `target`, and `weight`.
+### update Mar.26
+2. The application now provide the maximum flexiblity, allowing client choose any column as label and graph infer indicator(if graph is not provided).
+3. Please select meaningful combo of label and indicator, for example, using department to infer clusters in workplace makes sense, this column is highly relevant to managers. However, gender and positions are normally irrelavent(hope so).
+4. We design explicit accuracy test and plot for validation.
+5. To optimize model performance, you can provide your own network graph with columns `source`, `target`, and `weight`.
 
 ### Installation
 
 Install the required libraries by running the following command:
 
 ```bash
-pip install pandas openpyxl pyvis pyecharts torch torch_geometric
+pip install pandas openpyxl pyvis pyecharts torch torch_geometric node2vec
 
 
 
