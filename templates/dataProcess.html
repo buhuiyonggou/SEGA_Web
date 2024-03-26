@@ -58,7 +58,6 @@
   <body>
     <div class="container">
       <h2>User Data Processing</h2>
-
       <div id="processMessage" class="legend"  style="display: none">
         Processing...
       </div>
@@ -71,10 +70,10 @@
       </div>
       {% endif %} {% endwith %}
       <div class="d-flex justify-content-around mb-3">
-      <button id="graphSAGEProcess" class="btn btn-primary mt-3" onclick="handleSubmit('/process_graphsage')" {% if session.get('process_success', False) %}disabled{% endif %}>
+      <button id="graphSAGEProcess processButton" class="btn btn-primary mt-3" onclick="handleSubmit('/process_graphsage')" {% if session.get('enable_process', False) %}disabled{% endif %}>
         Process with GraphSAGE
       </button>
-      <button id="node2VecProcess" class="btn btn-warning mt-3" onclick="handleSubmit('/process_node2vec')"{% if session.get('process_success', False) %}disabled{% endif %}>
+      <button id="node2VecProcess processButton" class="btn btn-warning mt-3" onclick="handleSubmit('/process_node2vec')"{% if session.get('enable_process', False) %}disabled{% endif %}>
         Process with Node2Vec
       </button>
       </div>
@@ -95,11 +94,11 @@
 
       <div class="d-flex justify-content-around">
         <button id="downloadButton" class="btn btn-info mt-3" onclick="downloadProcessedFile()"
-        {% if not session.get('upload_success', False) or not session.get('process_success', False) %}disabled{% endif %}>
+        {% if not session.get('enable_download', False) %}disabled{% endif %}>
     Download CSV
 </button>
 <button id="goVisualizationDataUpload" class="btn btn-success mt-3" onclick="handleGoAnalyze()" {% if not
-  session.get('data_processed', False) %}disabled{% endif %}>
+  session.get('enable_analyze', False) %}disabled{% endif %}>
   Go to Analyze
 </button>
 
@@ -107,9 +106,9 @@
         <button
           id="goHomePage"
           class="btn btn-secondary mt-3"
-          onclick="window.location.href='/user_data_adoper'"
+          onclick="window.location.href='/'"
         >
-          Go Back to Upload
+          Go HomePage
         </button>
       </div>
     </div>
@@ -117,11 +116,13 @@
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script>
+
+
       function showDownloadButton() {
         document.getElementById("downloadButton").style.display = "block";
       }
       function downloadProcessedFile() {
-        window.location.href = "/download_processed_file";
+          window.location.href = "/download_processed_file";
       }
       function showLoading() {
         document.getElementById("loadingArea").style.display = "block";
@@ -133,7 +134,7 @@
         }, 500); 
       }
       
-       var dataProcessed = {{ 'true' if session.get('data_processed', False) else 'false' }};
+       var dataProcessed = {{ 'true' if session.get('enable_analyze', False) else 'false' }};
 
         function handleGoAnalyze() {
           if (dataProcessed) {
@@ -142,6 +143,7 @@
             alert("Please process the data before analyzing.");
           }
         }
+
     </script>
   </body>
 </html>

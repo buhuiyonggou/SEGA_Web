@@ -2,10 +2,11 @@ import os
 import pandas as pd
 import networkx as nx
 import numpy as np
-from flask import Flask, session, render_template, request, redirect, flash, jsonify, redirect, url_for, send_file, current_app
+from flask import Flask, get_flashed_messages, request, session, render_template, request, redirect, flash, jsonify, redirect, url_for, send_file, current_app
 import torch
 from werkzeug.utils import secure_filename
 from algorithms import calculate_centrality, detect_communities
+from upload_validation import column_validation, load_graph_data, process_and_validate_files
 from graph_utils import draw_graph_with_pyvis, draw_shortest_path_graph, invert_weights
 from pyecharts import options as opts
 from pyecharts.charts import Tree
@@ -24,196 +25,256 @@ app = Flask(__name__)
 # Configuration for the file upload folder and allowed file types
 UPLOAD_FOLDER = 'uploads'
 RAW_DATA_FOLDER = 'raw_data'
+PROCESSED_GRAPH_FOLDER = 'processed_graph'
 ALLOWED_EXTENSIONS = {'csv', 'xlsx'}
-EPOCHES = 200
+EPOCHES = 300
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['RAW_DATA_FOLDER'] = RAW_DATA_FOLDER
+app.config['PROCESSED_GRAPH_FOLDER'] = PROCESSED_GRAPH_FOLDER
 app.secret_key = 'BabaYaga'
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s - %(levelname)s - %(message)s')
-
 
 def allowed_file(filename):
     """Check if the uploaded file has an allowed extension."""
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Convert adjacency matrix to edge list
-
-
-def adjacency_to_edgelist(adj_matrix_df):
-    edges = []
-    for i, row in adj_matrix_df.iterrows():
-        for j, weight in row.items():  # Changed from iteritems() to items()
-            if weight != 0 and i != j:  # Assuming no self-loops and non-zero weight
-                edges.append((i, j, weight))
-    return pd.DataFrame(edges, columns=['Source', 'Target', 'Weight'])
-
-
-# Load graph data from a file
-def load_graph_data(filepath, file_extension):
-    try:
-        if file_extension.lower() == '.csv':
-            df = pd.read_csv(filepath)
-        elif file_extension.lower() == '.xlsx':
-            adj_matrix_df = pd.read_excel(filepath, index_col=0)
-            df = adjacency_to_edgelist(adj_matrix_df)
-        else:
-            raise ValueError("Unsupported file type.")
-
-        # Check if required columns are present
-        if not {'Source', 'Target', 'Weight'}.issubset(df.columns):
-            raise ValueError(
-                "Dataframe must contain 'Source', 'Target', and 'Weight' columns.")
-
-        # Sort by 'Weight' in descending order and select top 5000 rows
-        # df = df.sort_values(by='Weight', ascending=False).head(3000)
-
-        # Create graph from dataframe
-        G = nx.Graph()
-        for _, row in df.iterrows():
-            G.add_edge(row['Source'], row['Target'], weight=row['Weight'])
-
-        return df, G
-    except Exception as e:
-        # Handle any errors that occur during data loading
-        flash(str(e))  # Display the error message to the user
-        return None, None  # Return None values to indicate failure
-
-
 @app.route('/')
 def home():
+    session.clear()
     return render_template('Home.html')
-
 
 @app.route('/user_data_adoper', methods=['GET'])
 def upload_user_data():
     eb_algorithm = request.args.get('eb_algorithm', 'graphSAGE')
     return render_template('UserDataAdopter.html', eb_algorithm=eb_algorithm)
 
-
 @app.route('/user_upload', methods=['GET', 'POST'])
 def upload_data_store():
     if request.method == 'POST':
         node_file = request.files.get('participantFile')
-        if node_file and allowed_file(node_file.filename):
-            node_filename = secure_filename(node_file.filename)
-
         edge_file = request.files.get('relationshipFile')
-        if edge_file and allowed_file(edge_file.filename):
-            edge_filename = secure_filename(edge_file.filename)
+        success, infer_required = process_and_validate_files(node_file, edge_file, app.config['RAW_DATA_FOLDER'])
 
-        # Save files and process
-        if node_file:
-            session['node_filepath'] = os.path.join(
-                app.config['RAW_DATA_FOLDER'], secure_filename(node_file.filename))
-            node_file.save(session['node_filepath'])
-            session['upload_success'] = True
-        if edge_file:
-            session['edge_filepath'] = os.path.join(
-                app.config['RAW_DATA_FOLDER'], secure_filename(edge_file.filename))
-            edge_file.save(session['edge_filepath'])
-        session['process_success'] = False
+        if not success:
+            return redirect(url_for('upload_user_data'))
+        
+        # Column validation
+        node_filepath = session.get('node_filepath')
+        edge_filepath = session.get('edge_filepath', None)
+        
+        # def clear_flashed_messages(category_filter=['error']):
+        #     session.pop('_flashes', None)
+        
+        column_validation_success, message = column_validation( node_filepath, edge_filepath)
+        
+        if not column_validation_success:
+            # clear_flashed_messages()
+            flash(f"Error: {message}", 'error') 
+            return redirect(url_for('upload_user_data'))
 
-        return redirect(url_for('confirm_edge_upload'))
+        return redirect(url_for('graph_infer', infer='True' if infer_required else 'False'))
+    return redirect(url_for('upload_user_data'))
 
-
-@app.route('/confirm_edge_upload')
-def confirm_edge_upload():
-    if 'node_filepath' not in session:
-        flash('No participant file detected. Please upload the required files.', 'error')
+@app.route('/graph_infer')
+def graph_infer():
+    infer_required = request.args.get('infer', default='False', type=str) == 'True'
+    node_filepath = session.get('node_filepath')
+    
+    if not node_filepath:
         return redirect(url_for('upload_user_data'))
-    elif 'node_filepath' in session and 'edge_filepath' not in session:
-        flash('No edge file detected. Proceeding with inferred graph. You can upload an edge file to improve model accuracy.', 'warning')
-    else:
-        flash('Files successfully uploaded.', 'success')
-    return render_template('dataProcess.html', edge_file_provided='edge_filepath' in session)
 
+    if node_filepath.endswith('.csv'):
+        node_df = pd.read_csv(node_filepath, encoding='utf-8')
+    elif node_filepath.endswith('.xlsx'):
+        node_df = pd.read_excel(node_filepath)
+        
+    columns = node_df.columns.tolist()
+    # Exclude 'id' and 'name' from the columns
+    selectable_columns = [col for col in columns if col.lower() not in ['id', 'name']]
 
-# Implementation of graphSAGE
-@app.route('/process_graphsage')
-def data_process():
+    return render_template('inferSelector.html', infer_required=infer_required, columns=selectable_columns)
+
+@app.route('/perform_inference', methods=['POST'])
+def perform_inference():
+    session['selected_label_column'] = request.form.get('selectedLabelColumn')
+    session['selected_edge_infer_column'] = request.form.get('selectedEdgeInferColumn', None)
+    session['infer_required'] = 'True' if session['selected_edge_infer_column'] is None else 'False'
+    
+    return redirect(url_for('data_process_panel'))
+
+@app.route('/data_panel')
+def data_process_panel():
+    # initial data
+    graph_data_file = None
+    graph_data = None
+    unique_label = None
+    edge_infer_column = None
+    num_features = 0
+    num_infers = 0
+    num_labels = 0
+    
+    label_column = session.get('selected_label_column').lower()
+    if session.get('selected_edge_infer_column'):
+        edge_infer_column = session.get('selected_edge_infer_column').lower()
+
     try:
         node_filepath = session.get('node_filepath')
         edge_filepath = session.get('edge_filepath')
-
+        
         if node_filepath:
-            flash("Upload Status: upload successful!")
+            if edge_filepath:
+                flash("Upload Status: upload successful!")
+            else: 
+                flash("Upload Status: node file upload successful!")   
         else:
-            flash("Upload Status: Sorry, there is something wrong with uploading...")
+            logging.error("Upload Status: Sorry, there is something wrong with uploading...")
 
         processor = DataProcessor(
             node_filepath, edge_filepath if edge_filepath else None)
-
-        hr_data = processor.fetch_data_from_user(node_filepath)
-
-        if hr_data.empty:
-            flash("Sorry, document data cannot be found.")
-
+        
+        nodes_data = processor.fetch_data_from_user(node_filepath)
+        
+        if nodes_data.empty:
+            logging.error("Sorry, document data cannot be found.")
+            return redirect(url_for('upload_page'))
+        
         # process features
-        hr_data = processor.rename_columns_to_standard_1(
-            hr_data, processor.COLUMN_ALIGNMENT)
-
-        if 'id' not in hr_data.columns:
-            logging.error("The 'id' column is missing")
-            flash("The 'id' column is missing", "error")
-        if 'name' not in hr_data.columns:
-            logging.error("The 'name' column is missing")
-            flash("The 'name' column is missing", "error")
-
+        nodes_data = processor.rename_columns_to_standard_graphSAGE(
+            nodes_data, processor.COLUMN_ALIGNMENT)
         # store index map
-        index_to_name_mapping = processor.create_index_id_name_mapping(hr_data)
-
-        columns_to_exclude = ['id', 'name', 'department']
+        index_to_name_mapping = processor.create_str_index_mapping(nodes_data, label_column, edge_infer_column)
         
-        # prepare num_features and num_classes for visualization of validation 
-        node_features = [
-            col for col in hr_data.columns if col not in columns_to_exclude]
-        num_features = len(node_features)
-        
-        unique_departments = hr_data['department'].unique()
-        num_classes = len(unique_departments)
+        # save index map to processed graph
+        try:
+            mapping_path = os.path.join(PROCESSED_GRAPH_FOLDER, 'edge_mapping.csv')
+            index_to_name_mapping.to_csv(mapping_path, index=False)
+            session['edge_mapping_file'] = mapping_path
+        except Exception as message:
+            logging.error(f'Error: output {str(message)}')
+            flash(f'Error: output {str(message)}')
 
-        # get features with number
-        features = processor.features_generator(hr_data, node_features)
-
-        feature_index = processor.feature_index_generator(features)
-
-        # process edges
-        if edge_filepath:
-            edges = processor.edges_generator(hr_data, edge_filepath)
+        if edge_infer_column:
+            unique_infer_categories = nodes_data[edge_infer_column].unique().tolist()
         else:
-            edges = processor.edges_generator(hr_data)
+            unique_infer_categories = None
+        
+        unique_label = nodes_data[label_column].unique().tolist()
+        
+        # prepare num_features and num_classes for visualization of validation
+        if label_column == edge_infer_column or edge_infer_column is None:
+            columns_to_exclude = ['id', 'name', edge_infer_column]
+        else: 
+            columns_to_exclude = ['id', 'name', label_column, edge_infer_column]
+        node_features = [
+            col for col in nodes_data.columns if col not in columns_to_exclude]
+        
+        # column numbers and category of infer indicator
+        num_features, num_labels= len(node_features), len(unique_label)
+        
+        if edge_infer_column:
+            num_infers = len(unique_infer_categories)
 
-        edge_index = processor.edge_index_generator(edges)
-        print(len(edge_index[0]))
-        print(len(edge_index[1]))
+        # generate edges
+        edges_data = processor.edges_generator(nodes_data, edge_infer_column, edge_filepath)
+
+        edge_index = processor.edge_index_generator(edges_data)
+        
+        # generate features
+        x, labels = processor.numeric_dataset(nodes_data, node_features, label_column)
+        
         # check if nan value exists
-        processor.nanCheck(hr_data, feature_index)
+        flash(processor.nanCheck(nodes_data, x))
+        
+        # create train and test mask
+        num_rows = nodes_data.shape[0]
+        
+        graph_data = processor.construct_graph_data(num_rows, edge_index, x, labels)
+        
+        # save graph data
+        graph_data_file = PROCESSED_GRAPH_FOLDER + '/graph_data.pt'
+        torch.save(graph_data, graph_data_file)
+        session['graph_data_file'] = graph_data_file
+        session['num_features'] = num_features
+        session['num_labels'] = num_labels
+        session["num_infers"] = num_infers
+        session['label_names'] = unique_label
+        session['enable_process'] = False
+        session['enable_download'] = False
+        session['enable_analyze'] = False
+    except Exception as e:
+        flash(f'Error: {str(e)}')
+    finally:
+        # Clear the session after processing is complete
+        session.pop('node_filepath', None)
+        session.pop('edge_filepath', None)
+    
+    return render_template('dataProcess.html', 
+                           graph_file = graph_data_file,
+                           mapping_file =mapping_path,
+                           num_features=num_features,
+                           num_labels=num_labels,
+                           num_infers=num_infers,
+                           label_names=unique_label,
+                           process_success=session.get('enable_process'),
+                           enable_download=session.get('enable_download'),
+                            enable_analyze=session.get('enable_analyze'))    
+                           
+    
+# Implementation of graphSAGE
+@app.route('/process_graphsage', methods=['GET', 'POST'])
+def process_with_graphsage():
+    
+    graph_data_file = session.get('graph_data_file')
+    mapping_file = session.get('edge_mapping_file')
+    num_features = session.get('num_features')
+    num_labels = session.get('num_labels')
+    num_infers = session.get('num_infers')
+    labels = session.get('label_names')
 
-        graphSAGEProcessor = GraphSAGE(num_features, 16, num_classes)
+    if not graph_data_file or num_features is None or num_labels is None:
+        logging.error('Missing data for processing.')
+        return redirect(url_for('data_process_panel'))
+    if not mapping_file:
+        logging.error('Missing mapping file for processing.')
+        return redirect(url_for('data_process_panel'))
+    
+    try:
+        graph_data = torch.load(graph_data_file)
+        flash('GraphSAGE processing completed successfully', 'success')
+        mapping_df = pd.read_csv(mapping_file)
         
-        # allowing using cuda to improve efficiency
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        graphSAGEProcessor = graphSAGEProcessor.to(device)
+        session.pop('graph_data_file', None)
+        session.pop('num_features', None)
+        session.pop('num_classes', None)
+        session.pop('num_infers', None)
+        session.pop('label_names', None)
+        session.pop('edge_mapping_file', None)
         
-        embeddings = graphSAGEProcessor.model_training(graphSAGEProcessor, device, feature_index, edge_index, EPOCHES)
-        edge_embeddings_start = embeddings[edge_index[0]]
-        edge_embeddings_end = embeddings[edge_index[1]]
+        graphSAGEProcessor = GraphSAGE(in_channels=num_features, hidden_channels=16, out_channels=num_labels) 
         
-        print(type(edge_embeddings_start))
-        print(type(edge_embeddings_end))
-        print(len(edge_embeddings_start), len(edge_embeddings_end))
+        embeddings = graphSAGEProcessor.model_training(graphSAGEProcessor, graph_data, EPOCHES)
+        if embeddings is None:
+            logging.error('Error in generating embeddings.')
+            return redirect(url_for('data_process_panel'))
+        
+        # generating validation plot
+        graphSAGEProcessor.visualize_embeddings(embeddings, graph_data.y, labels)
+        
+        # mapping weighted graph and save to csv
+        edge_embeddings_start = embeddings[graph_data.edge_index[0]]
+        edge_embeddings_end = embeddings[graph_data.edge_index[1]]
         
         raw_weights = torch.norm(edge_embeddings_start - edge_embeddings_end, dim=1).cpu().numpy()
-        edges_with_weights = pd.DataFrame(edge_index.t().cpu().numpy(), columns=['Source', 'Target'])
+        edges_with_weights = pd.DataFrame(graph_data.edge_index.t().cpu().numpy(), columns=['Source', 'Target'])
         edges_with_weights['Weight'] = raw_weights
-        
-        index_to_name_dict = index_to_name_mapping.set_index('index')['name'].to_dict()
-        
+
+        index_to_name_dict = mapping_df.set_index('index')['name'].to_dict()
+
         edges_with_weights['Source'] = edges_with_weights['Source'].map(index_to_name_dict)
         edges_with_weights['Target'] = edges_with_weights['Target'].map(index_to_name_dict)
-
+        
         # Save the DataFrame to a CSV file
         try:
             output_path = UPLOAD_FOLDER + '/weighted_graph.csv'
@@ -223,23 +284,26 @@ def data_process():
             flash(f'Error: output {str(message)}')
         finally:
             flash(message)
-            session['process_success'] = True
-            session['data_processed'] = True
+            session['enable_process'] = True
+            session['enable_download'] = True
+            session['enable_analyze'] = True
             session['processed_file'] = 'weighted_graph.csv'
     except Exception as e:
-        session['process_success'] = False
+        session['enable_process'] = False
+        session['enable_download'] = False
+        session['enable_analyze'] = False
         flash(f'Error: {str(e)}')
+        # return redirect(url_for('graph_infer'))
     finally:
         # Clear the session after processing is complete
         session.pop('node_filepath', None)
         session.pop('edge_filepath', None)
-    return render_template('dataProcess.html', process_success=session.get('process_success', False))
-
-# add tsne_embeddings
-@app.route('/tsne_embeddings')
-def tsne_embeddings_route():
-    tsne_embeddings = session.get('tsne_embeddings', [])
-    return jsonify(tsne_embeddings)
+        os.remove(mapping_file)
+        os.remove(graph_data_file)
+    return render_template('dataProcess.html', process_success=session.get('enable_process'),
+                            download_success=session.get('enable_download'),
+                            analyze_success=session.get('enable_analyze'))   
+                           
 
 @app.route('/process_node2vec')
 def data_process_node2vec():
@@ -257,7 +321,7 @@ def data_process_node2vec():
 
         # Load and preprocess the data
         hr_data = processor.fetch_data_from_user(node_filepath)
-        hr_data = processor.rename_columns_to_standard_2(
+        hr_data = processor.rename_columns_to_standard_node2vec(
             hr_data, processor.COLUMN_ALIGNMENT)
 
         # Define node features for processing
@@ -279,7 +343,7 @@ def data_process_node2vec():
         flash(nan_check_msg, "info")
 
         # Ensure 'index_to_name_mapping' is available
-        index_to_name_mapping = processor.create_index_id_name_mapping(hr_data)
+        index_to_name_mapping = processor.create_str_index_mapping(hr_data)
         name_dict = index_to_name_mapping.set_index('index')['name'].to_dict()
 
         # Create a graph from the edges
@@ -321,15 +385,12 @@ def data_process_node2vec():
         logging.exception("Error in Node2Vec processing: " + str(e))
         session['process_success'] = False
         flash(f"Error in Node2Vec processing: {str(e)}", "error")
+    finally:
+        # Clear the session after processing is complete
+        session.pop('node_filepath', None)
+        session.pop('edge_filepath', None)
 
     return render_template('dataProcess.html', process_success=session.get('process_success', False))
-
-
-@app.route('/training_progress')
-def training_progress():
-    progress = session.get('training_progress', 'Not started')
-    return jsonify({'progress': progress})
-
 
 @app.route('/download_processed_file')
 def download_processed_file():
@@ -341,7 +402,6 @@ def download_processed_file():
     else:
         flash('No processed file available for download.')
         return redirect(url_for('data_process'))
-
 
 @app.route('/analyze')
 def analyze():
@@ -573,5 +633,7 @@ if __name__ == '__main__':
         os.makedirs(UPLOAD_FOLDER)
     if not os.path.exists(RAW_DATA_FOLDER):
         os.makedirs(RAW_DATA_FOLDER)
+    if not os.path.exists(PROCESSED_GRAPH_FOLDER):
+        os.makedirs(PROCESSED_GRAPH_FOLDER)
 
     app.run(debug=True)

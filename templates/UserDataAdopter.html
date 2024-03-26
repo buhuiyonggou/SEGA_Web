@@ -16,6 +16,8 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
       rel="stylesheet"
     />
+    <script src="//cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <link href="/static/styles.css" rel="stylesheet" />
     <style>
       body {
@@ -80,6 +82,18 @@
         method="post"
         enctype="multipart/form-data"
       >
+      {% with messages = get_flashed_messages(category_filter=["error"]) %}
+    {% if messages %}
+      <div id= "errorMessage" class="alert alert-danger text-center rounded-pill" role="alert">
+        {% for message in messages %}
+          {{ message }}
+        {% endfor %}
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+    {% endif %}
+  {% endwith %}
         <div class="form-group text-center">
           <label for="participantFile" class="custom-label-size"
             >1. Participant Document
@@ -96,7 +110,7 @@
           <small id="eparticipantFileHelp" class="form-text text-muted"
             ><p>
               Please make sure your file contains column "<strong>id</strong>",
-              "<strong>name</strong>", and "<strong>department</strong>"
+              "<strong>name</strong>"
             </p></small
           >
         </div>
@@ -113,26 +127,22 @@
             onchange="disableInputField('relationshipFile')"
           />
           <small id="relationshipFileHelp" class="form-text text-muted">
-            <p class="mt-n1">
+            <p >
               Please make sure your file contains column
-              "<strong>source</strong>", "<strong>target</strong>",
-            </p>
-            <p class="mt-n3">
-              and "<strong>a numric relationship</strong>"
+              "<strong>source</strong>", "<strong>target</strong>"
             </p></small
           >
         </div>
 
-       {% with messages = get_flashed_messages(with_categories=true) %} {% if
-        messages %}
-        <script>
-             window.onload = function() {
-                 {% for category, message in messages %}
-                 alert("{{ message }}");
-                 {% endfor %}
-             };        
-      </script>  
-        {% endif %} {% endwith %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <ul class="text-center" style="list-style-type: none;">
+            {% for category, message in messages %}
+                <li class="{{ category }} " style="color: #fc8403;">{{ message }}</li>
+            {% endfor %}
+            </ul>
+        {% endif %}
+        {% endwith %} 
         <div>
           <div class="d-flex justify-content-around">
             <button
@@ -218,6 +228,7 @@
       document.getElementById("relationshipFile").onchange = function () {
         validateFileType("relationshipFile");
         disableInputField("relationshipFile");
+
       };
 
       function updateUploadButtonState() {
@@ -243,6 +254,7 @@
         updateUploadButtonState();
       };
 
+
       window.onload = function () {
         var isUploadValid =
           document.getElementById("uploadCheck").dataset.isUploadValid;
@@ -250,6 +262,38 @@
           alert("Upload failed. Please try again.");
         }
       };
+    
+    window.addEventListener("pageshow", function (event) {
+          document.getElementById("fileUploadForm").reset();
+
+          document.getElementById("participantFile").classList.remove("disabled-input");
+          document.getElementById("relationshipFile").classList.remove("disabled-input");
+          document.getElementById("confirmUploadBtn").disabled = true;
+
+          const messagesContainer = document.querySelector('ul.text-center');
+          if (messagesContainer) {
+              messagesContainer.style.display = 'none';
+          }
+      }
+  );
+
+    $(document).ready(function () {
+      cancelUpload(); 
+  
+      $('#fileUploadForm').submit(function(event) {
+          const nodeFileInput = document.getElementById('participantFile');
+          const relationshipFileInput = document.getElementById('relationshipFile');
+  
+          if (!relationshipFileInput.files.length) {
+              const userConfirmed = confirm("No edges provided. Social Network Explorer will infer the graph for you.");
+              
+              if (!userConfirmed) {
+                  event.preventDefault(); 
+                  return false; 
+              }
+          }
+      });
+  });
     </script>
   </body>
 </html>

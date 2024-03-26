@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from itertools import combinations
 import torch
+from torch_geometric.data import Data
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from sklearn.impute import SimpleImputer
 import logging
@@ -11,30 +12,14 @@ class DataProcessor:
         self.nodes_folder = nodes_folder
         self.edges_folder = edges_folder
         
-        self.CONNECT_AMONG_SUB_DEPART = 0.25
-        self.CONNECT_AMONG_DEPARTMENT = 0.05
-        self.CONNECT_AMONG_ORGANIZATION = 0.01
+        self.UPPER_RATIO = 0.25
+        self.LOWER_RATIO = 0.03
         self.COLUMN_ALIGNMENT = {
             'id': ['id', 'emp_id', 'employeeid'],
             'name': ['name', 'full_name', "employee_name", 'first_name'],
-            'department': ['department', 'depart', 'sector'],
-            'sub-depart': ['sub-depart', 'sub-department', 'sub-sector', 'second-department'],
-            'manager': ['manager', 'supervisor', 'manager_name', 'managername']
         }
         self.NODE_FEATURES = []
         self.epoches = 200
-
-    def load_data(self, file_path):
-        if file_path.endswith('.csv'):
-            # Handles BOM if present
-            df = pd.read_csv(file_path, encoding='utf-8')
-        elif file_path.endswith('.xlsx'):
-            df = pd.read_excel(file_path)
-        else:
-            raise ValueError("Unsupported file format")
-
-        df.columns = df.columns.str.lower()
-        return df
 
     def fetch_data_from_user(self, file_path):
         if file_path is None:
@@ -55,7 +40,7 @@ class DataProcessor:
 
         return df
 
-    def rename_columns_to_standard_1(self, df, column_alignment):
+    def rename_columns_to_standard_graphSAGE(self, df, column_alignment):
         df_copy = df.copy()    
         
         for standard_name, variations in column_alignment.items():
@@ -70,7 +55,7 @@ class DataProcessor:
         return df_copy
 
     # Function to rename columns based on expected variations
-    def rename_columns_to_standard_2(self, df, column_alignment):
+    def rename_columns_to_standard_node2vec(self, df, column_alignment):
         # Dictionary to hold new column names
         new_column_names = {}
 
@@ -92,65 +77,45 @@ class DataProcessor:
 
         return df
 
-    def create_index_id_name_mapping(self, hr_data):
+    def create_str_index_mapping(self, node_data, label_column, edge_infer_column=None):
+        index_to_id_name_mapping = []
 
-        index_to_id_name_mapping = [{
-            'index': i,
-            'id': row['id'],
-            'name': row['name'].title() if 'name' in row else 'Unknown',
-            'department': row['department']
-        } for i, row in hr_data.iterrows()]
-
+        for i, row in node_data.iterrows():
+            mapping_entry = {
+                'index': i,
+                'id': row['id'],
+                'name': row['name'].title() if 'name' in row else 'Unknown_name',
+                "label": row[label_column] if label_column in row else "Unknown_label"
+            }
+            if edge_infer_column and edge_infer_column in node_data.columns:
+                mapping_entry[edge_infer_column] = row[edge_infer_column]
+            index_to_id_name_mapping.append(mapping_entry)
+            
         mapping_df = pd.DataFrame(index_to_id_name_mapping)
         return mapping_df
-
-    def preprocess_data(self, df, node_features):
-        # Initialize LabelEncoder and MinMaxScaler
-        le = LabelEncoder()
-        scaler = MinMaxScaler()
-        imputer = SimpleImputer(strategy='mean')
-        for column in node_features:
-            if df[column].dtype == 'object':
-                # Convert categorical data to numerical
-                df[column] = le.fit_transform(df[column].astype(str))
-            else:
-                # Reshape the column data to a 2D array for imputer and scaler
-                # Reshape data
-                column_data_reshaped = df[column].values.reshape(-1, 1)
-                # Apply imputer to the reshaped data
-                imputed_data = imputer.fit_transform(column_data_reshaped)
-                # Apply scaler to the imputed and reshaped data
-                df[column] = scaler.fit_transform(imputed_data)
-
-        return df
-
+    
     # Re-defining the custom function to adapt to the new logic
-    def manage_edge_probability(self, edges, hr_data, dept_indices, sub_dept_info=False):
+    def manage_edge_probability(self, edges, node_data, dept_indices, edge_infer):
         for i, j in combinations(dept_indices, 2):
-            emp_i = hr_data.iloc[i]
-            emp_j = hr_data.iloc[j]
-            if sub_dept_info:  # When there's detail on 'sub-depart'
-                if (emp_i['department'] == emp_j['department']) and (emp_i['sub-depart'] == emp_j['sub-depart']):
-                    if np.random.rand() < self.CONNECT_AMONG_SUB_DEPART:  # Same department and 'sub-depart'
-                        edges.append([i, j])
-                elif emp_i['department'] == emp_j['department']:
-                    if np.random.rand() < self.CONNECT_AMONG_DEPARTMENT:  # Same department but not 'sub-depart'
-                        edges.append([i, j])
+            emp_i = node_data.iloc[i]
+            emp_j = node_data.iloc[j]
+            if emp_i[edge_infer] == emp_j[edge_infer]:
+                if np.random.rand() < self.UPPER_RATIO:  # Same department but not 'sub-depart'
+                    edges.append([i, j])
             else:  # Defaults to handling by 'department' with chance
-                if emp_i['department'] == emp_j['department']:
-                    if np.random.rand() < self.CONNECT_AMONG_DEPARTMENT:
+                if np.random.rand() < self.LOWER_RATIO:
                         edges.append([i, j])
 
     # if edges are given by user, relationship_data is not None, mapping current users to edges
 
-    def edges_generator(self, hr_data, edge_filepath=None):
+    def edges_generator(self, node_data, edge_infer, edge_filepath=None):
         edges = []
-        mapping_df = self.create_index_id_name_mapping(hr_data)
+        mapping_df = self.create_str_index_mapping(node_data, edge_infer)
 
         if edge_filepath:
             # mapping name to index and generating edges
-            hr_edge = self.fetch_data_from_user(edge_filepath)
-            for _, row in hr_edge.iterrows():
+            edge_data = self.fetch_data_from_user(edge_filepath)
+            for _, row in edge_data.iterrows():
                 source_id = row['source']
                 target_id = row['target']
                 source_index = mapping_df[mapping_df['id']
@@ -160,46 +125,65 @@ class DataProcessor:
 
                 edges.append([source_index, target_index])
         else:
-            # if edges are not given, infer the edges
-            if 'sub-depart' in hr_data.columns and hr_data['sub-depart'].notnull().any():
-                for dept in hr_data['sub-depart'].unique():
-                    dept_indices = hr_data[hr_data['sub-depart']
-                                           == dept].index.tolist()
-                    self.manage_edge_probability(
-                        edges, hr_data, dept_indices, sub_dept_info=True)
-            else:
-                for dept in hr_data['department'].unique():
-                    dept_indices = hr_data[hr_data['department']
-                                           == dept].index.tolist()
-                    self.manage_edge_probability(
-                        edges, hr_data, dept_indices, sub_dept_info=False)
+            if edge_infer is None:
+                logging.error("Edge infer column is None")
+            for each in node_data[edge_infer].unique():
+                column_indices = node_data[node_data[edge_infer]
+                                        == each].index.tolist()
+                self.manage_edge_probability(
+                    edges, node_data, column_indices, edge_infer)
         return edges
 
     def edge_index_generator(self, edges):
         edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
         return edge_index
 
-    def features_generator(self, hr_data, node_features):
-        hr_data_parsed = self.preprocess_data(hr_data, node_features)
-        # Exclude 'id' and 'name' columns from features
-        feature_columns = [
-            col for col in hr_data.columns if col in node_features]
+    def numeric_dataset(self, df, node_features, label_column):
+        # Initialize LabelEncoder and MinMaxScaler
+        le = LabelEncoder()
+        scaler = MinMaxScaler()
+        imputer = SimpleImputer(strategy='mean')
 
-        features_data = hr_data_parsed[feature_columns].values
+        for column in node_features:
+            if df[column].dtype == 'object':
+                df[column] = le.fit_transform(df[column].astype(str))
+            else:
+                column_data_reshaped = df[column].values.reshape(-1, 1)
+                imputed_data = imputer.fit_transform(column_data_reshaped)
+                df[column] = scaler.fit_transform(imputed_data)
+                
+        # Encode labels
+        if df[label_column].dtype == 'object':
+            # print(f"Non-numeric values in label column '{label_column}':", df[label_column].unique())
+            df[label_column] = le.fit_transform(df[label_column].astype(str))
+        
+        labels = torch.tensor(df[label_column].values, dtype=torch.long)
+        # adjust labels to start from 0
+        if labels.min() != 0:
+            labels = labels - labels.min()
+        x = torch.tensor(df[node_features].values, dtype=torch.float)
 
-        return features_data
+        return x, labels
 
-    def feature_index_generator(self, features):
-        feature_index = torch.tensor(features, dtype=torch.float)
-
-        return feature_index
-
-    def nanCheck(self, hr_data, feature_index):
+    def nanCheck(self, node_data, feature_index):
         # Check for NaN values in features
         if torch.isnan(feature_index).any():
-            nan_columns = hr_data.columns[hr_data.isnull().any()].tolist()
+            nan_columns = node_data.columns[node_data.isnull().any()].tolist()
             raise ValueError(
                 f"NaN values detected in columns: {', '.join(nan_columns)}")
         return "No NaN values detected."
 
-    
+    def construct_graph_data(self, num_rows, edge_index, x, y):
+        train_mask = torch.zeros(num_rows, dtype=torch.bool)
+        val_mask = torch.zeros(num_rows, dtype=torch.bool)
+        test_mask = torch.zeros(num_rows, dtype=torch.bool)
+        
+        indices = np.random.permutation(num_rows)
+        train_size = int(0.7 * num_rows)
+        val_size = int(0.2 * num_rows)
+        train_mask[indices[:train_size]] = True
+        val_mask[indices[train_size:train_size+val_size]] = True
+        test_mask[indices[train_size+val_size:]] = True
+        
+        graph_data = Data(x=x, edge_index=edge_index, y=y, train_mask=train_mask, val_mask=val_mask, test_mask=test_mask)
+        return graph_data

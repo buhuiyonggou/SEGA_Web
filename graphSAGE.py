@@ -1,9 +1,11 @@
-import pandas as pd
+import logging
+logging.getLogger('matplotlib').setLevel(logging.WARNING)
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import torch
 from torch_geometric.nn import SAGEConv
-from torch_geometric.data import Data
 import torch.nn.functional as F
-from sklearn.preprocessing import MinMaxScaler
 from sklearn.manifold import TSNE
 
 class GraphSAGE(torch.nn.Module):
@@ -13,65 +15,72 @@ class GraphSAGE(torch.nn.Module):
         self.conv2 = SAGEConv(hidden_channels, out_channels, aggr='mean')
 
     def forward(self, x, edge_index):
-        x = self.conv1(x, edge_index).relu()
+        x = F.relu(self.conv1(x, edge_index))
         x = self.conv2(x, edge_index)
-        return x
-    
-    def contrastive_loss(self, out, edge_index, num_neg_samples=None):
-        # Positive samples: directly connected nodes
-        pos_loss = F.pairwise_distance(
-            out[edge_index[0]], out[edge_index[1]]).pow(2).mean()
+        return F.log_softmax(x, dim=1)
 
-        # Negative sampling: randomly select pairs of nodes that are not directly connected
-        num_nodes = out.size(0)
-        num_neg_samples = num_neg_samples or edge_index.size(1)
-        neg_edge_index = torch.randint(
-            0, num_nodes, (2, num_neg_samples), dtype=torch.long, device=out.device)
-
-        neg_loss = F.relu(
-            1 - F.pairwise_distance(out[neg_edge_index[0]], out[neg_edge_index[1]])).pow(2).mean()
-
-        loss = pos_loss + neg_loss
-        return loss
-
-    def model_training(self, model, device, feature_index, edge_index, epoches):
-        data = Data(x=feature_index, edge_index=edge_index)
+    def model_training(self, model, graph_data,epoches):
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        model = model.to(device)
+        graph_data = graph_data.to(device)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
+        criterion = torch.nn.CrossEntropyLoss()
         
-        data = data.to(device)
-        optimizer = torch.optim.Adam(self.parameters(), lr=0.01, weight_decay=5e-4)
-        model.train()
+        def train():
+                model.train()
+                optimizer.zero_grad()
+                out = model(graph_data.x, graph_data.edge_index)
+                # Only use nodes with labels available for loss calculation --> mask
+                loss = criterion(out[graph_data.train_mask], graph_data.y[graph_data.train_mask])
+                loss.backward()
+                optimizer.step()
+                return loss
         
-        # Training loop
-        for epoch in range(epoches):
-            optimizer.zero_grad()
-            out = model(data.x, data.edge_index)
-            loss = model.contrastive_loss(out, data.edge_index)
+        def test():
+            model.eval()
+            out = model(graph_data.x, graph_data.edge_index)
+            # Check against ground-truth labels.
+            pred = out.argmax(dim=1)
 
-            # backup for supervised learning
-            # loss = F.nll_loss(out[data.train_mask], data.y[data.train_mask])
-            loss.backward() 
-            optimizer.step()
-            if (epoch+1) % 10 == 0:
-                print(f'Epoch {epoch+1}, Loss: {loss.item()}')
+            test_correct = pred[graph_data.test_mask] == graph_data.y[graph_data.test_mask]
+            # Derive ratio of correct predictions.
+            test_acc = int(test_correct.sum()) / int(graph_data.test_mask.sum())
+            return test_acc
 
+        losses = []
+        for epoch in range(0, epoches + 1):
+            loss = train()
+            losses.append(loss)
+            if (epoch + 1) % 10 == 0:
+                print(f'Epoch: {(epoch + 1):03d}, Loss: {loss:.6f}')
+        test_acc = test()
+        print(f'Test Accuracy: {test_acc * 100:.4f} %')
+        
         model.eval()
         with torch.no_grad():
-            embeddings = model(data.x, data.edge_index)
+            embeddings = model(graph_data.x, graph_data.edge_index)
 
         return embeddings
+    
+    def visualize_embeddings(self, embeddings, tensor_labels, labels):
+        tsne = TSNE(n_components=2, random_state=42)
+        embeddings_2d = tsne.fit_transform(embeddings.detach().cpu().numpy())
+        
+        plt.figure(figsize=(12, 10))
+        unique_labels = torch.unique(tensor_labels).cpu().numpy()
+        # if more than 10 labels, use only first 10
+        if len(unique_labels) > 10:
+            unique_labels = unique_labels[:10]
 
-    def data_reshape(self, scaled_weights, edge_index, index_to_name_mapping):
-        # Create a DataFrame to exports
-        edges_with_weights = pd.DataFrame(
-            edge_index.t().numpy(), columns=['Source', 'Target'])
+        colors = plt.cm.tab20.colors
+        for i, l in enumerate(unique_labels):
+            plt.scatter(embeddings_2d[tensor_labels == l, 0], embeddings_2d[tensor_labels == l, 1], c=[colors[i]], label=labels[i])
+        plt.legend(loc='lower left', title='Label Names')
+        plt.title('t-SNE visualization of embeddings')
+        plt.xlabel('t-SNE dimension 1')
+        plt.ylabel('t-SNE dimension 2')
+        plt.savefig('static/tsne_plot.png')
+        plt.close()
 
-        # Update the DataFrame with scaled weights
-        edges_with_weights['Weight'] = scaled_weights
-
-        # Use id to map names
-        edges_with_weights['Source'] = edges_with_weights['Source'].apply(
-            lambda x: index_to_name_mapping.loc[x, 'name'])
-        edges_with_weights['Target'] = edges_with_weights['Target'].apply(
-            lambda x: index_to_name_mapping.loc[x, 'name'])
-
-        return edges_with_weights
+            
+    
