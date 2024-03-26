@@ -77,21 +77,23 @@ class DataProcessor:
 
         return df
 
-    def create_index_id_name_mapping(self, node_data, edge_infer_column=None):
+    def create_str_index_mapping(self, node_data, label_column, edge_infer_column=None):
         index_to_id_name_mapping = []
 
         for i, row in node_data.iterrows():
             mapping_entry = {
                 'index': i,
                 'id': row['id'],
-                'name': row['name'].title() if 'name' in row else 'Unknown'
+                'name': row['name'].title() if 'name' in row else 'Unknown_name',
+                "label": row[label_column] if label_column in row else "Unknown_label"
             }
             if edge_infer_column and edge_infer_column in node_data.columns:
                 mapping_entry[edge_infer_column] = row[edge_infer_column]
             index_to_id_name_mapping.append(mapping_entry)
-
+            
         mapping_df = pd.DataFrame(index_to_id_name_mapping)
         return mapping_df
+    
     # Re-defining the custom function to adapt to the new logic
     def manage_edge_probability(self, edges, node_data, dept_indices, edge_infer):
         for i, j in combinations(dept_indices, 2):
@@ -108,7 +110,7 @@ class DataProcessor:
 
     def edges_generator(self, node_data, edge_infer, edge_filepath=None):
         edges = []
-        mapping_df = self.create_index_id_name_mapping(node_data, edge_infer)
+        mapping_df = self.create_str_index_mapping(node_data, edge_infer)
 
         if edge_filepath:
             # mapping name to index and generating edges

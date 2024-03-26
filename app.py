@@ -107,6 +107,7 @@ def perform_inference():
 @app.route('/data_panel')
 def data_process_panel():
     # initial data
+    graph_data_file = None
     graph_data = None
     unique_label = None
     edge_infer_column = None
@@ -143,7 +144,7 @@ def data_process_panel():
         nodes_data = processor.rename_columns_to_standard_graphSAGE(
             nodes_data, processor.COLUMN_ALIGNMENT)
         # store index map
-        index_to_name_mapping = processor.create_index_id_name_mapping(nodes_data, edge_infer_column)
+        index_to_name_mapping = processor.create_str_index_mapping(nodes_data, label_column, edge_infer_column)
         
         # save index map to processed graph
         try:
@@ -244,8 +245,6 @@ def process_with_graphsage():
         flash('GraphSAGE processing completed successfully', 'success')
         mapping_df = pd.read_csv(mapping_file)
         
-        os.remove(graph_data_file)
-        os.remove(mapping_file)
         session.pop('graph_data_file', None)
         session.pop('num_features', None)
         session.pop('num_classes', None)
@@ -255,12 +254,15 @@ def process_with_graphsage():
         
         graphSAGEProcessor = GraphSAGE(in_channels=num_features, hidden_channels=16, out_channels=num_labels) 
         
-        embeddings = graphSAGEProcessor.model_training(graphSAGEProcessor, graph_data, num_labels, EPOCHES)
+        embeddings = graphSAGEProcessor.model_training(graphSAGEProcessor, graph_data, EPOCHES)
         if embeddings is None:
             logging.error('Error in generating embeddings.')
             return redirect(url_for('data_process_panel'))
         
         # generating validation plot
+        graphSAGEProcessor.visualize_embeddings(embeddings, graph_data.y, labels)
+        
+        # mapping weighted graph and save to csv
         edge_embeddings_start = embeddings[graph_data.edge_index[0]]
         edge_embeddings_end = embeddings[graph_data.edge_index[1]]
         
@@ -272,7 +274,7 @@ def process_with_graphsage():
 
         edges_with_weights['Source'] = edges_with_weights['Source'].map(index_to_name_dict)
         edges_with_weights['Target'] = edges_with_weights['Target'].map(index_to_name_dict)
-
+        
         # Save the DataFrame to a CSV file
         try:
             output_path = UPLOAD_FOLDER + '/weighted_graph.csv'
@@ -296,6 +298,8 @@ def process_with_graphsage():
         # Clear the session after processing is complete
         session.pop('node_filepath', None)
         session.pop('edge_filepath', None)
+        os.remove(mapping_file)
+        os.remove(graph_data_file)
     return render_template('dataProcess.html', process_success=session.get('enable_process'),
                             download_success=session.get('enable_download'),
                             analyze_success=session.get('enable_analyze'))   
@@ -339,7 +343,7 @@ def data_process_node2vec():
         flash(nan_check_msg, "info")
 
         # Ensure 'index_to_name_mapping' is available
-        index_to_name_mapping = processor.create_index_id_name_mapping(hr_data)
+        index_to_name_mapping = processor.create_str_index_mapping(hr_data)
         name_dict = index_to_name_mapping.set_index('index')['name'].to_dict()
 
         # Create a graph from the edges

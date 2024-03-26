@@ -1,11 +1,10 @@
+import logging
+logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import matplotlib
-import pandas as pd
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import numpy as np
 import torch
 from torch_geometric.nn import SAGEConv
-from torch_geometric.data import Data
 import torch.nn.functional as F
 from sklearn.manifold import TSNE
 
@@ -16,11 +15,11 @@ class GraphSAGE(torch.nn.Module):
         self.conv2 = SAGEConv(hidden_channels, out_channels, aggr='mean')
 
     def forward(self, x, edge_index):
-        x = self.conv1(x, edge_index).relu()
+        x = F.relu(self.conv1(x, edge_index))
         x = self.conv2(x, edge_index)
-        return x
+        return F.log_softmax(x, dim=1)
 
-    def model_training(self, model, graph_data, num_labels,epoches):
+    def model_training(self, model, graph_data,epoches):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         model = model.to(device)
         graph_data = graph_data.to(device)
@@ -32,9 +31,6 @@ class GraphSAGE(torch.nn.Module):
                 optimizer.zero_grad()
                 out = model(graph_data.x, graph_data.edge_index)
                 # Only use nodes with labels available for loss calculation --> mask
-                # unique_labels = torch.unique(graph_data.y[graph_data.train_mask])
-                # print("Unique labels:", unique_labels)
-                # print("Expected range of labels:", list(range(num_labels)))
                 loss = criterion(out[graph_data.train_mask], graph_data.y[graph_data.train_mask])
                 loss.backward()
                 optimizer.step()
@@ -58,10 +54,33 @@ class GraphSAGE(torch.nn.Module):
             if (epoch + 1) % 10 == 0:
                 print(f'Epoch: {(epoch + 1):03d}, Loss: {loss:.6f}')
         test_acc = test()
-        print(f'Test Accuracy: {test_acc:.6f}')
+        print(f'Test Accuracy: {test_acc * 100:.4f} %')
         
         model.eval()
         with torch.no_grad():
             embeddings = model(graph_data.x, graph_data.edge_index)
 
         return embeddings
+    
+    def visualize_embeddings(self, embeddings, tensor_labels, labels):
+        tsne = TSNE(n_components=2, random_state=42)
+        embeddings_2d = tsne.fit_transform(embeddings.detach().cpu().numpy())
+        
+        plt.figure(figsize=(12, 10))
+        unique_labels = torch.unique(tensor_labels).cpu().numpy()
+        # if more than 10 labels, use only first 10
+        if len(unique_labels) > 10:
+            unique_labels = unique_labels[:10]
+
+        colors = plt.cm.tab20.colors
+        for i, l in enumerate(unique_labels):
+            plt.scatter(embeddings_2d[tensor_labels == l, 0], embeddings_2d[tensor_labels == l, 1], c=[colors[i]], label=labels[i])
+        plt.legend(loc='lower left', title='Label Names')
+        plt.title('t-SNE visualization of embeddings')
+        plt.xlabel('t-SNE dimension 1')
+        plt.ylabel('t-SNE dimension 2')
+        plt.savefig('static/tsne_plot.png')
+        plt.close()
+
+            
+    
