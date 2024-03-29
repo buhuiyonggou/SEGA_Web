@@ -66,7 +66,6 @@ def process_and_validate_files(node_file, edge_file, raw_data_folder):
     
     return True, infer_required
 
-
 def column_validation(node_filepath, edge_filepath=None):
     required_node_columns = {'id', 'name'}
     required_edge_columns = {'source', 'target'}

@@ -1,8 +1,8 @@
-# SEGA_Web
+# Social Network Explorer
 Welcome to **SEGA_Web**. Our platform aims at exploring the intricate web of relationships between members of any organization, leveraging advanced machine learning and graph theory techniques to provide deep insights into network dynamics.
 
-## About SEGA_Web
-**SEGA_Web** serves as a unique tool for delving into organizational networks, making it an indispensable resource for researchers and practitioners alike. By combining transductive machine learning algorithms, such as **node2vec**, with Graph Neural Networks (GNN), such as **GraphSAGE**, our application excels in embedding graphs to accurately weigh and analyze network relationships.
+## About Social Network Explorer
+**Social Network Explorer** serves as a unique tool for delving into organizational networks, making it an indispensable resource for researchers and practitioners alike. By combining transductive machine learning algorithms, such as **node2vec**, with Graph Neural Networks (GNN), such as **GraphSAGE**, our application excels in embedding graphs to accurately weigh and analyze network relationships.
 
 ### Key Features:
 - **Data Upload:** Users can easily upload their dataset, enabling the application to process and analyze complex networks.
@@ -28,15 +28,18 @@ TBD
 Follow these steps to get started with SEGA_Web:
 
 1. We accept both CSV and XLSX files for parsing and embedding data.
-2. The application requires a file containing members and their attributes. Three columns are mandatory: `id`, `name`, and `department`. The app can infer your network graph if it is not provided.
-3. To optimize model performance, you can provide your own network graph with columns `source`, `target`, and `weight`.
+### update Mar.26
+2. The application now provide the maximum flexiblity, allowing client choose any column as label and graph infer indicator(if graph is not provided).
+3. Please select meaningful combo of label and indicator, for example, using department to infer clusters in workplace makes sense, this column is highly relevant to managers. However, gender and positions are normally irrelavent(hope so).
+4. We design explicit accuracy test and plot for validation.
+5. To optimize model performance, you can provide your own network graph with columns `source`, `target`, and `weight`.
 
 ### Installation
 
 Install the required libraries by running the following command:
 
 ```bash
-pip install pandas openpyxl pyvis pyecharts torch torch_geometric
+pip install pandas openpyxl pyvis pyecharts torch torch_geometric node2vec
 
 
 

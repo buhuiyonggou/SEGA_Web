@@ -23,13 +23,16 @@ from node2vec import Node2Vec
 app = Flask(__name__)
 
 # Configuration for the file upload folder and allowed file types
-UPLOAD_FOLDER = 'uploads'
-RAW_DATA_FOLDER = 'raw_data'
-PROCESSED_GRAPH_FOLDER = 'processed_graph'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+RAW_DATA_FOLDER = os.path.join(BASE_DIR, 'raw_data')
+PLOT_FOLDER = os.path.join(BASE_DIR, 'plots')
+PROCESSED_GRAPH_FOLDER = os.path.join(BASE_DIR,'processed_graph')
 ALLOWED_EXTENSIONS = {'csv', 'xlsx'}
 EPOCHES = 300
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['RAW_DATA_FOLDER'] = RAW_DATA_FOLDER
+app.config['PLOT_FOLDER'] = PLOT_FOLDER
 app.config['PROCESSED_GRAPH_FOLDER'] = PROCESSED_GRAPH_FOLDER
 app.secret_key = 'BabaYaga'
 logging.basicConfig(level=logging.DEBUG,
@@ -246,11 +249,11 @@ def process_with_graphsage():
         mapping_df = pd.read_csv(mapping_file)
         
         session.pop('graph_data_file', None)
+        session.pop('edge_mapping_file', None)
         session.pop('num_features', None)
-        session.pop('num_classes', None)
+        session.pop('num_labels', None)
         session.pop('num_infers', None)
         session.pop('label_names', None)
-        session.pop('edge_mapping_file', None)
         
         graphSAGEProcessor = GraphSAGE(in_channels=num_features, hidden_channels=16, out_channels=num_labels) 
         
@@ -260,7 +263,7 @@ def process_with_graphsage():
             return redirect(url_for('data_process_panel'))
         
         # generating validation plot
-        graphSAGEProcessor.visualize_embeddings(embeddings, graph_data.y, labels)
+        graphSAGEProcessor.visualize_embeddings(embeddings, graph_data.y, labels, PLOT_FOLDER)
         
         # mapping weighted graph and save to csv
         edge_embeddings_start = embeddings[graph_data.edge_index[0]]
@@ -277,7 +280,7 @@ def process_with_graphsage():
         
         # Save the DataFrame to a CSV file
         try:
-            output_path = UPLOAD_FOLDER + '/weighted_graph.csv'
+            output_path = UPLOAD_FOLDER + '/graphSAGE_edges.csv'
             edges_with_weights.to_csv(output_path, index=False)
             message = "Process Status: Congragulations! You data has successfully processed."
         except Exception as message:
@@ -287,7 +290,7 @@ def process_with_graphsage():
             session['enable_process'] = True
             session['enable_download'] = True
             session['enable_analyze'] = True
-            session['processed_file'] = 'weighted_graph.csv'
+            session['processed_file'] = 'graphSAGE_edges.csv'
     except Exception as e:
         session['enable_process'] = False
         session['enable_download'] = False
@@ -305,47 +308,34 @@ def process_with_graphsage():
                             analyze_success=session.get('enable_analyze'))   
                            
 
-@app.route('/process_node2vec')
+@app.route('/process_node2vec', methods=['GET', 'POST'])
 def data_process_node2vec():
+    graph_data_file = session.get('graph_data_file')
+    mapping_file = session.get('edge_mapping_file')
+    num_features = session.get('num_features')
+    num_labels = session.get('num_labels')
+    
+    if not graph_data_file or num_features is None or num_labels is None:
+        logging.error('Missing data for processing.')
+        return redirect(url_for('data_process_panel'))
+    if not mapping_file:
+        logging.error('Missing mapping file for processing.')
+        return redirect(url_for('data_process_panel'))
+    
     try:
-        node_filepath = session.get('node_filepath')
-
-        # Make sure the node filepath is provided and not None
-        if not node_filepath:
-            flash("No node data file provided", "error")
-            logging.error("Node filepath is None")
-            return redirect(url_for('upload_user_data'))
-
-        # Create an instance of the DataProcessor
-        processor = DataProcessor(node_filepath)
-
-        # Load and preprocess the data
-        hr_data = processor.fetch_data_from_user(node_filepath)
-        hr_data = processor.rename_columns_to_standard_node2vec(
-            hr_data, processor.COLUMN_ALIGNMENT)
-
-        # Define node features for processing
-        node_features = [
-            col for col in hr_data.columns if col not in ['id', 'name']]
-        processor.NODE_FEATURES = node_features
-
-        # Generate edges based on department and sub-department
-        edges = processor.edges_generator(hr_data)
-        edge_index = processor.edge_index_generator(edges)
-
-        # Generate features
-        features = processor.features_generator(
-            hr_data, processor.NODE_FEATURES)
-        feature_index = processor.feature_index_generator(features)
-
-        # Check for NaN values
-        nan_check_msg = processor.nanCheck(hr_data, feature_index)
-        flash(nan_check_msg, "info")
-
-        # Ensure 'index_to_name_mapping' is available
-        index_to_name_mapping = processor.create_str_index_mapping(hr_data)
-        name_dict = index_to_name_mapping.set_index('index')['name'].to_dict()
-
+        graph_data = torch.load(graph_data_file)
+        flash('GraphSAGE processing completed successfully', 'success')
+        mapping_df = pd.read_csv(mapping_file)
+        
+        session.pop('graph_data_file', None)
+        session.pop('edge_mapping_file', None)
+        session.pop('num_features', None)
+        session.pop('num_labels', None)
+        
+        # map the graph data to the original node names
+        name_dict = mapping_df.set_index('index')['name'].to_dict()
+        edges = graph_data.edge_index.t().cpu().numpy() 
+        
         # Create a graph from the edges
         G = nx.Graph()
         G.add_edges_from(edges)
@@ -368,29 +358,38 @@ def data_process_node2vec():
                             neighbor, f"Unknown-{neighbor}")
                         edge_list.append((source_name, target_name, weight))
 
+        print("edge_list", edge_list[10])
         edges_df = pd.DataFrame(
             edge_list, columns=['Source', 'Target', 'Weight'])
 
+        print ("edges_df", edges_df.head())
         # Save the DataFrame to a CSV file
         output_path = os.path.join(
             app.config['UPLOAD_FOLDER'], 'node2vec_edges.csv')
         edges_df.to_csv(output_path, index=False)
 
         flash("Node2Vec process completed and CSV file generated.", "success")
-        session['process_success'] = True
-        session['data_processed'] = True
+        session['enable_process'] = True
+        session['enable_download'] = True
+        session['enable_analyze'] = True
         session['processed_file'] = 'node2vec_edges.csv'
 
     except Exception as e:
         logging.exception("Error in Node2Vec processing: " + str(e))
-        session['process_success'] = False
+        session['enable_process'] = False
+        session['enable_download'] = False
+        session['enable_analyze'] = False
         flash(f"Error in Node2Vec processing: {str(e)}", "error")
     finally:
         # Clear the session after processing is complete
         session.pop('node_filepath', None)
         session.pop('edge_filepath', None)
+        os.remove(mapping_file)
+        os.remove(graph_data_file)
 
-    return render_template('dataProcess.html', process_success=session.get('process_success', False))
+    return render_template('dataProcess.html', process_success=session.get('enable_process'),
+                            download_success=session.get('enable_download'),
+                            analyze_success=session.get('enable_analyze'))
 
 @app.route('/download_processed_file')
 def download_processed_file():
