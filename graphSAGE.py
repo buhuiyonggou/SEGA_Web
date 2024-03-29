@@ -1,4 +1,5 @@
 import logging
+import os
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import matplotlib
 matplotlib.use('Agg')
@@ -62,7 +63,7 @@ class GraphSAGE(torch.nn.Module):
 
         return embeddings
     
-    def visualize_embeddings(self, embeddings, tensor_labels, labels):
+    def visualize_embeddings(self, embeddings, tensor_labels, labels, plot_folder):
         tsne = TSNE(n_components=2, random_state=42)
         embeddings_2d = tsne.fit_transform(embeddings.detach().cpu().numpy())
         
@@ -79,7 +80,7 @@ class GraphSAGE(torch.nn.Module):
         plt.title('t-SNE visualization of embeddings')
         plt.xlabel('t-SNE dimension 1')
         plt.ylabel('t-SNE dimension 2')
-        plt.savefig('static/tsne_plot.png')
+        plt.savefig(plot_folder + '/tsne_plot_graphSAGE.png')
         plt.close()
 
             
