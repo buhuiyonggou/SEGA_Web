@@ -467,17 +467,21 @@ def test(word2vec_model, graph_data):
 def visualize_embeddings(embeddings, graph_data, labels, plot_folder):
     tsne = TSNE(n_components=2, random_state=42)
 
-    # Assuming embeddings is a dictionary
-    node_indices = list(embeddings.keys())
-    embeddings_array = np.array([embeddings[idx] for idx in node_indices])
+    # Convert string keys to integers and filter based on graph_data.y length
+    node_indices = [int(idx) for idx in embeddings.keys()
+                    if int(idx) < len(graph_data.y)]
+
+    # Extract relevant embeddings
+    embeddings_array = np.array([embeddings[str(idx)] for idx in node_indices])
     embeddings_2d = tsne.fit_transform(embeddings_array)
 
     plt.figure(figsize=(12, 10))
     unique_labels = np.unique(graph_data.y.cpu().numpy())
     colors = plt.cm.rainbow(np.linspace(0, 1, len(unique_labels)))
 
-    for i, l in enumerate(unique_labels):
-        mask = graph_data.y.cpu().numpy() == l
+    # Plot each class
+    for i, label in enumerate(unique_labels):
+        mask = graph_data.y.cpu().numpy()[node_indices] == label
         plt.scatter(embeddings_2d[mask, 0], embeddings_2d[mask, 1], c=[
                     colors[i]], label=labels[i])
 
