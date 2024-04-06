@@ -371,62 +371,13 @@ def data_process_node2vec():
         G = nx.Graph()
         G.add_edges_from(edges)
 
-        node2vec = Node2Vec(G, dimensions=64, walk_length=20,
-                            num_walks=100, workers=4)
+        # Process with Node2Vec
+        node2vec = Node2Vec(G, dimensions=64, walk_length=30,
+                            num_walks=200, workers=4)
         model = node2vec.fit(window=10, min_count=1, batch_words=4)
         embeddings = model.wv
 
-        # Convert boolean masks to integer indices
-        train_indices = torch.nonzero(graph_data.train_mask, as_tuple=True)[
-            0].cpu().numpy()
-        test_indices = torch.nonzero(graph_data.test_mask, as_tuple=True)[
-            0].cpu().numpy()
-
-        # Filter out indices that are not present in the embeddings
-        train_indices = [idx for idx in train_indices if idx in embeddings]
-        test_indices = [idx for idx in test_indices if idx in embeddings]
-
-        # Train a classifier on the embeddings
-        X_train = embeddings[train_indices]
-        y_train = graph_data.y[graph_data.train_mask].cpu().numpy()
-        clf = LogisticRegression(
-            multi_class='auto', solver='lbfgs', max_iter=1000)
-        clf.fit(X_train, y_train)
-
-        # Evaluate the classifier on the test data
-        X_test = embeddings[test_indices]
-        y_test = graph_data.y[graph_data.test_mask].cpu().numpy()
-        y_pred = clf.predict(X_test)
-        accuracy = accuracy_score(y_test, y_pred)
-
-        # Convert the KeyedVectors to a numpy array
-        embeddings_array = np.array([embeddings[node]
-                                    for node in G.nodes() if node in embeddings])
-
-        # Visualize the embeddings using t-SNE
-        tsne = TSNE(n_components=2, random_state=42)
-        embeddings_2d = tsne.fit_transform(embeddings_array)
-
-        plt.figure(figsize=(12, 10))
-        unique_labels = np.unique(graph_data.y.cpu().numpy())
-        if len(unique_labels) > 10:
-            unique_labels = unique_labels[:10]
-        colors = plt.cm.tab20.colors
-
-        for i, l in enumerate(unique_labels):
-            mask = graph_data.y.cpu().numpy() == l
-            node_indices = [idx for idx, node in enumerate(
-                G.nodes()) if node in embeddings]
-            plt.scatter(embeddings_2d[node_indices][mask], embeddings_2d[node_indices][mask], c=[
-                        colors[i]], label=labels[i])
-
-        plt.legend(loc='lower left', title='Label Names')
-        plt.title('t-SNE visualization of Node2Vec embeddings')
-        plt.xlabel('t-SNE dimension 1')
-        plt.ylabel('t-SNE dimension 2')
-        plt.savefig(PLOT_FOLDER + '/tsne_plot_node2vec.png')
-        plt.close()
-
+        # Save Node2Vec embeddings to a DataFrame
         edge_list = []
         for node in G.nodes():
             if node in embeddings:
@@ -445,8 +396,7 @@ def data_process_node2vec():
             app.config['UPLOAD_FOLDER'], 'node2vec_edges.csv')
         edges_df.to_csv(output_path, index=False)
 
-        flash(
-            f"Node2Vec process completed. Test Accuracy: {accuracy:.4f}", "success")
+        flash("Node2Vec process completed and CSV file generated.", "success")
         session['enable_process'] = True
         session['enable_download'] = True
         session['enable_analyze'] = True
@@ -467,7 +417,6 @@ def data_process_node2vec():
     return render_template('dataProcess.html', process_success=session.get('enable_process'),
                            download_success=session.get('enable_download'),
                            analyze_success=session.get('enable_analyze'))
-
 
 @app.route('/download_processed_file')
 def download_processed_file():
