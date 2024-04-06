@@ -371,22 +371,22 @@ def data_process_node2vec():
         G = nx.Graph()
         G.add_edges_from(edges)
 
-        # Process with Node2Vec
-        node2vec = Node2Vec(G, dimensions=64, walk_length=30,
-                            num_walks=200, workers=4)
-        model = node2vec.fit(window=10, min_count=1, batch_words=4)
-        embeddings = model.wv
+        os.environ['OMP_NUM_THREADS'] = '1'
+        node2vec = Node2Vec(G, dimensions=64, walk_length=20,
+                            num_walks=100, workers=1)
+        embeddings = model_training(node2vec, graph_data, labels, epochs=10)
+        G = nx.relabel_nodes(G, {node: str(node) for node in G.nodes()})
 
-        # Save Node2Vec embeddings to a DataFrame
         edge_list = []
         for node in G.nodes():
             if node in embeddings:
                 for neighbor in G.neighbors(node):
                     if neighbor in embeddings:
                         weight = np.dot(embeddings[node], embeddings[neighbor])
-                        source_name = name_dict.get(node, f"Unknown-{node}")
+                        source_name = name_dict.get(
+                            int(node), f"Unknown-{node}")
                         target_name = name_dict.get(
-                            neighbor, f"Unknown-{neighbor}")
+                            int(neighbor), f"Unknown-{neighbor}")
                         edge_list.append((source_name, target_name, weight))
 
         edges_df = pd.DataFrame(
@@ -396,7 +396,8 @@ def data_process_node2vec():
             app.config['UPLOAD_FOLDER'], 'node2vec_edges.csv')
         edges_df.to_csv(output_path, index=False)
 
-        flash("Node2Vec process completed and CSV file generated.", "success")
+        flash(
+            "Node2Vec process completed.", "success")
         session['enable_process'] = True
         session['enable_download'] = True
         session['enable_analyze'] = True
@@ -417,6 +418,97 @@ def data_process_node2vec():
     return render_template('dataProcess.html', process_success=session.get('enable_process'),
                            download_success=session.get('enable_download'),
                            analyze_success=session.get('enable_analyze'))
+
+
+def test(word2vec_model, graph_data):
+    logging.debug("Entering test function")
+    embeddings = {node: word2vec_model.wv[str(
+        node)] for node in word2vec_model.wv.key_to_index}
+
+    train_mask = graph_data.train_mask
+    test_mask = graph_data.test_mask
+    y = graph_data.y.cpu().numpy()
+
+    train_indices = [idx for idx, value in enumerate(
+        train_mask.cpu().numpy()) if value]
+    test_indices = [idx for idx, value in enumerate(
+        test_mask.cpu().numpy()) if value]
+
+    train_indices = [idx for idx in train_indices if str(idx) in embeddings]
+    test_indices = [idx for idx in test_indices if str(idx) in embeddings]
+
+    if len(train_indices) == 0 or len(test_indices) == 0:
+        print("Training or test set is empty.")
+        return 0
+
+    X_train = np.array([embeddings[str(idx)] for idx in train_indices])
+    y_train = y[train_indices]
+
+    X_test = np.array([embeddings[str(idx)] for idx in test_indices])
+    y_test = y[test_indices]
+
+    embedding_size = 64  # Replace with actual embedding size
+    X_train = X_train.reshape(-1, embedding_size)
+    X_test = X_test.reshape(-1, embedding_size)
+
+    clf = LogisticRegression(multi_class='auto', solver='lbfgs', max_iter=1000)
+    clf.fit(X_train, y_train)
+    y_pred = clf.predict(X_test)
+    accuracy = accuracy_score(y_test, y_pred)
+
+    return accuracy
+
+
+def visualize_embeddings(embeddings, graph_data, labels, plot_folder):
+    tsne = TSNE(n_components=2, random_state=42)
+
+    # Convert string keys to integers and filter based on graph_data.y length
+    node_indices = [int(idx) for idx in embeddings.keys()
+                    if int(idx) < len(graph_data.y)]
+
+    # Extract relevant embeddings
+    embeddings_array = np.array([embeddings[str(idx)] for idx in node_indices])
+    embeddings_2d = tsne.fit_transform(embeddings_array)
+
+    plt.figure(figsize=(12, 10))
+    unique_labels = np.unique(graph_data.y.cpu().numpy())
+    colors = plt.cm.rainbow(np.linspace(0, 1, len(unique_labels)))
+
+    # Plot each class
+    for i, label in enumerate(unique_labels):
+        mask = graph_data.y.cpu().numpy()[node_indices] == label
+        plt.scatter(embeddings_2d[mask, 0], embeddings_2d[mask, 1], c=[
+                    colors[i]], label=labels[i])
+
+    plt.legend(loc='upper right', title='Label Names')
+    plt.title('t-SNE visualization of Node2Vec embeddings')
+    plt.xlabel('t-SNE dimension 1')
+    plt.ylabel('t-SNE dimension 2')
+    plt.tight_layout()
+    plt.savefig(plot_folder + '/tsne_plot_node2vec.png')
+    plt.close()
+
+
+def model_training(node2vec, graph_data, labels, epochs):
+    # Train the Node2Vec model and get Word2Vec model
+    word2vec_model = node2vec.fit(window=10, min_count=1, batch_words=4)
+
+    # Extract embeddings from the trained Word2Vec model
+    embeddings = {node: word2vec_model.wv[str(
+        node)] for node in word2vec_model.wv.key_to_index if str(node) in word2vec_model.wv}
+
+    # Calculate test accuracy
+    try:
+        accuracy = test(word2vec_model, graph_data)
+        logging.debug(f"Test Accuracy: {accuracy:.4f}")
+    except Exception as e:
+        logging.error(f"Error during testing: {e}")
+
+    # Visualize embeddings
+    visualize_embeddings(embeddings, graph_data, labels, PLOT_FOLDER)
+
+    return embeddings
+
 
 @app.route('/download_processed_file')
 def download_processed_file():
