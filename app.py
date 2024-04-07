@@ -287,7 +287,7 @@ def process_with_graphsage():
         # generating validation plot
         graphSAGEProcessor.visualize_embeddings(
             embeddings, graph_data.y, labels, PLOT_FOLDER)
-        
+
         # mapping weighted graph and save to csv
         edge_embeddings_start = embeddings[graph_data.edge_index[0]]
         edge_embeddings_end = embeddings[graph_data.edge_index[1]]
@@ -659,4 +659,6 @@ if __name__ == '__main__':
     if not os.path.exists(PROCESSED_GRAPH_FOLDER):
         os.makedirs(PROCESSED_GRAPH_FOLDER)
 
-    app.run(debug=True)
+    # Bind to PORT if defined (environment variable on Heroku), otherwise default to 5000.
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
