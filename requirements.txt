@@ -145,7 +145,7 @@ sympy==1.12
 tensorboardX==2.6
 tomli==2.0.1
 tomlkit==0.12.1
-torch==2.2.2
+torch==1.8.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
 tornado==6.3.3
 tqdm==4.66.1
 typing_extensions==4.8.0
