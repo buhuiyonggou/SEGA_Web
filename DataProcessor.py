@@ -132,6 +132,8 @@ class DataProcessor:
                                         == each].index.tolist()
                 self.manage_edge_probability(
                     edges, node_data, column_indices, edge_infer)
+        # print edges number to show the result
+        print(f"Amount of Edges: {len(edges)}")
         return edges
 
     def edge_index_generator(self, edges):
