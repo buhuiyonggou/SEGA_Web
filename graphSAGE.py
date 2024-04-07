@@ -77,9 +77,11 @@ class GraphSAGE(torch.nn.Module):
         for i, l in enumerate(unique_labels):
             plt.scatter(embeddings_2d[tensor_labels == l, 0], embeddings_2d[tensor_labels == l, 1], c=[colors[i]], label=labels[i])
         plt.legend(loc='lower left', title='Label Names')
-        plt.title('t-SNE visualization of embeddings')
-        plt.xlabel('t-SNE dimension 1')
-        plt.ylabel('t-SNE dimension 2')
+        plt.title('t-SNE visualization of embeddings', fontsize=18)
+        plt.xlabel('t-SNE dimension 1', fontsize=14)
+        plt.ylabel('t-SNE dimension 2', fontsize=14)
+        plt.xticks(fontsize=12)
+        plt.yticks(fontsize=12)
         plt.savefig(plot_folder + '/tsne_plot_graphSAGE.png')
         plt.close()
 

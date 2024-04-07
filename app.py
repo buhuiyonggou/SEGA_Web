@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import networkx as nx
 import numpy as np
-from flask import Flask, get_flashed_messages, request, session, render_template, request, redirect, flash, jsonify, redirect, url_for, send_file, current_app
+from flask import Flask, request, session, render_template, request, redirect, flash, jsonify, redirect, url_for, send_file, current_app
 import torch
 from werkzeug.utils import secure_filename
 from algorithms import calculate_centrality, detect_communities
@@ -12,17 +12,12 @@ from pyecharts import options as opts
 from pyecharts.charts import Tree
 from pyecharts.globals import ThemeType
 from scipy.spatial.distance import squareform
-from scipy.cluster.hierarchy import dendrogram, linkage, to_tree
+from scipy.cluster.hierarchy import linkage, to_tree
 import json
 from DataProcessor import DataProcessor
 from graphSAGE import GraphSAGE
 import logging
 from node2vec import Node2Vec
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score
-from sklearn.manifold import TSNE
-import matplotlib.pyplot as plt
-from sklearn.decomposition import PCA
 
 
 app = Flask(__name__)
