@@ -1,5 +1,5 @@
 # Social Network Explorer
-Welcome to **SEGA_Web**. Our platform aims at exploring the intricate web of relationships between members of any organization, leveraging advanced machine learning and graph theory techniques to provide deep insights into network dynamics.
+Welcome to **Social Network Explorer**. Our platform aims at exploring the intricate web of relationships between members of any organization, leveraging advanced machine learning and graph theory techniques to provide deep insights into network dynamics.
 
 ## About Social Network Explorer
 **Social Network Explorer** serves as a unique tool for delving into organizational networks, making it an indispensable resource for researchers and practitioners alike. By combining transductive machine learning algorithms, such as **node2vec**, with Graph Neural Networks (GNN), such as **GraphSAGE**, our application excels in embedding graphs to accurately weigh and analyze network relationships.
@@ -20,8 +20,7 @@ SEGA_Web's contributions are threefold, offering significant advancements in the
 3. **Flexible and Diverse Visualization:** With flexible input options and a wide range of visualization tools, SEGA_Web caters to diverse analytical needs, enabling users to explore and interpret their networks in various ways.
 
 ## Demo
-
-TBD
+https://drive.google.com/file/d/1M1v4DAhNFBSsHt2Huavpymvo63mEydKN/view
 
 ## How to Run
 

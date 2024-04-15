@@ -18,11 +18,6 @@ from DataProcessor import DataProcessor
 from graphSAGE import GraphSAGE
 import logging
 from node2vec import Node2Vec
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score
-from sklearn.manifold import TSNE
-import matplotlib.pyplot as plt
-from sklearn.decomposition import PCA
 
 
 app = Flask(__name__)

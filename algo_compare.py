@@ -5,10 +5,6 @@ import numpy as np
 from node2vec import Node2Vec
 import torch
 from torch_geometric.datasets import Planetoid
-from torch_geometric.nn import SAGEConv
-import torch.nn.functional as F
-from torch_geometric.data import Data
-from sklearn.model_selection import train_test_split
 from graphSAGE import GraphSAGE
 import matplotlib
 matplotlib.use('TkAgg')
