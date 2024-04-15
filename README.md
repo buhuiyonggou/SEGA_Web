@@ -11,7 +11,7 @@ Welcome to **SEGA_Web**. Our platform aims at exploring the intricate web of rel
 - **Advanced Analysis:** The app suggests implicit relationships within the network, such as centrality and clustering, based on specific attributes.
 - **Flexible Input and Visualization:** SEGA_Web supports flexible input limitations and offers a variety of visualization options to suit different analytical needs.
 
-## Contributions of SEGA_Web
+## Contributions of Social Network Explorer
 
 SEGA_Web's contributions are threefold, offering significant advancements in the analysis and visualization of organizational networks:
 
