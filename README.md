@@ -40,6 +40,8 @@ Install the required libraries by running the following command:
 ```bash
 pip install pandas openpyxl pyvis pyecharts torch torch_geometric node2vec
 
+Or use **requirements.txt** to install libraries.
+
 
 
 
