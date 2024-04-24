@@ -587,21 +587,14 @@ def show_dendrogram(filename):
              initial_tree_depth=10,
              is_roam=True,
              symbol="circle",
-             symbol_size=8,  # Adjust the size of the nodes
+             symbol_size=8, 
              label_opts=opts.LabelOpts(
                  font_size=10,
-                 color="#fa8072",  # Darker color for labels for better readability
+                 color="#fa8072",
                  font_style="normal",
                  font_weight="bold",
-                 position="right"  # Adjust label position if needed
-        ),
-            # leaves_label_opts=opts.LabelOpts(
-            #     color="#fff",  # Light color for leaf labels if needed
-            #     position="right",
-            #     horizontal_align="right",
-            #     vertical_align="middle",
-            #     rotate=-90
-            # ),
+                 position="right" 
+            ),
         )
         .set_global_opts(
             title_opts=opts.TitleOpts(
@@ -610,7 +603,7 @@ def show_dendrogram(filename):
                 title_textstyle_opts=opts.TextStyleOpts(color="black"),
             ),
             tooltip_opts=opts.TooltipOpts(
-                trigger="item", formatter="{b}")  # Customizing tooltip
+                trigger="item", formatter="{b}")
         )
     )
 
@@ -647,7 +640,6 @@ def convert_to_dendrogram_json(Z, labels):
                 "children": [build_json(node.left), build_json(node.right)]
             }
 
-    # Build and return the JSON structure
     return build_json(tree)
 
 
@@ -658,8 +650,7 @@ if __name__ == '__main__':
         os.makedirs(RAW_DATA_FOLDER)
     if not os.path.exists(PROCESSED_GRAPH_FOLDER):
         os.makedirs(PROCESSED_GRAPH_FOLDER)
-
-    # Bind to PORT if defined (environment variable on Render), otherwise default to 5000.
-    # port = int(os.environ.get("PORT", 5000))
-    # app.run(host='0.0.0.0', port=port, debug=True)
+    if not os.path.exists(PLOT_FOLDER):
+        os.makedirs(PLOT_FOLDER)
+    
     app.run(debug=True)

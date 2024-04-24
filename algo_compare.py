@@ -40,11 +40,11 @@ graphsage_time, _ = time_execution(
     model_sage.model_training, model_sage, data, epoches=200)
 
 # Performance data (dummy data for demonstration purposes, please replace with actual timings)
-# I'll create a similar linear relationship for the graph as seen in your uploaded image
+# Create a similar linear relationship for the graph as seen in your uploaded image
 graph_sizes = [100, 200, 300, 400, 500]
-# assuming linear growth similar to your image
+# Assuming linear growth similar to your image
 node2vec_performance = [t * (node2vec_time/35.0) for t in graph_sizes]
-# constant time as seen in your image
+# Constant time as seen in your image
 graphsage_performance = [t * (graphsage_time/5.0) for t in graph_sizes]
 
 # Plotting the performance comparison
