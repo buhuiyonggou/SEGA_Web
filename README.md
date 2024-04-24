@@ -33,14 +33,28 @@ Follow these steps to get started with SEGA_Web:
 4. We design explicit accuracy test and plot for validation.
 5. To optimize model performance, you can provide your own network graph with columns `source`, `target`, and `weight`.
 
+## How to use
+
+1. Choose the model you'd like to use to embed features of data, either Node2Vec or GraphSAGE.
+2. Upload your raw data, input data should contain at least columns **"id"** and **"name"**, other features are flexible to include.
+3. You can also provide graph data with the format **"Source" - "Taget" - "Weight"**, in which Source and Target could be name or id, Weight has to be float numnber.
+4. If you don't provide graph data, click **"Infer"** to generate inferred edges between nodes.
+5. After edges generated, choose either **GraphSAGE** or **Node2Vec** to embedding your graph.
+6. You can **download the generated CSV** file for further utilization, or directly access the visualiation by click Analyze button.
+7. At the menu page of visualiation, you can choose what **centrality algorithms** and **community detection algorithms** to proceed and visualize your data.
+8. Procceed with dynamic diagram might take long time(sometimes white screen happens due to the limit capacity of CPU), please wait until the diagram shows up.
+9. After dynamic diagram is generated, please follow instructions on the page to explore other functionalities such as shortest path way.
+
 ### Installation
 
-Install the required libraries by running the following command:
+Use **requirements.txt** to install libraries.
+
+Or install the required libraries by running the following command:
 
 ```bash
 pip install pandas openpyxl pyvis pyecharts torch torch_geometric node2vec
 
-Or use **requirements.txt** to install libraries.
+
 
 
 
