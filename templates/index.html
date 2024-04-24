@@ -56,28 +56,28 @@
       }
 
       .btn-primary {
-        background-color: #2575fc; 
-        border-color: #2063d6; 
+        background-color: #2575fc;
+        border-color: #2063d6;
       }
 
       .btn-secondary {
-        background-color: #6fa8dc; 
-        border-color: #5e97d1; 
+        background-color: #6fa8dc;
+        border-color: #5e97d1;
       }
 
       .btn-info {
-        background-color: #ba55d3; 
-        border-color: #a94fd3; 
+        background-color: #ba55d3;
+        border-color: #a94fd3;
       }
 
       .btn-secondary:hover {
-        background-color: #5e97d1; 
-        border-color: #5378c3; 
+        background-color: #5e97d1;
+        border-color: #5378c3;
       }
 
       .btn-info:hover {
-        background-color: #a94fd3; 
-        border-color: #983bce; 
+        background-color: #a94fd3;
+        border-color: #983bce;
       }
 
       .btn:focus,
@@ -87,12 +87,12 @@
 
       .btn-secondary:focus,
       .btn-secondary:active {
-        box-shadow: 0 0 0 2px rgba(110, 168, 220, 0.5); 
+        box-shadow: 0 0 0 2px rgba(110, 168, 220, 0.5);
       }
 
       .btn-info:focus,
       .btn-info:active {
-        box-shadow: 0 0 0 2px rgba(186, 85, 211, 0.5); 
+        box-shadow: 0 0 0 2px rgba(186, 85, 211, 0.5);
       }
 
       /* Additional styles for better UI */
@@ -214,8 +214,7 @@
       <!-- Current Filename for debugging -->
       <p>Current Filename: {{ filename }}</p>
     </div>
-
-    <!-- Scripts -->
+    <!-- Bootstrap JS -->
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script>
@@ -254,7 +253,7 @@
             console.log(error);
             document.getElementById("pathResult").innerHTML =
               '<p class="alert alert-danger">An error occurred while processing your request.</p>';
-            
+
             document.getElementById("pathResult").style.display = "block";
           },
         });

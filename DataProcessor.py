@@ -33,7 +33,7 @@ class DataProcessor:
             raise ValueError("Unsupported file format")
 
         df.columns = df.columns.str.lower()
-        df.fillna("Missing", inplace=True)  # Handle missing values
+        df.fillna("Missing", inplace=True)
 
         if not isinstance(df, pd.DataFrame):
             raise ValueError("Loaded data is not a DataFrame")
@@ -48,15 +48,13 @@ class DataProcessor:
                 found_columns = [col for col in df_copy.columns if col.lower() == variation.lower()]
                 if found_columns:
                     df_copy.rename(columns={found_columns[0]: standard_name}, inplace=True)
-                    break  # Stop looking for other variations if one is found
+                    break  # once a variation is found, break out of the loop
         if not isinstance(df_copy, pd.DataFrame):
             logging.error(
                 "rename_columns_to_standard_1 is not returning a DataFrame")
         return df_copy
 
-    # Function to rename columns based on expected variations
     def rename_columns_to_standard_node2vec(self, df, column_alignment):
-        # Dictionary to hold new column names
         new_column_names = {}
 
         for standard_name, variations in column_alignment.items():
@@ -65,7 +63,6 @@ class DataProcessor:
                     new_column_names[variation] = standard_name
                     break  # once a variation is found, break out of the loop
 
-        # Apply the renaming
         df.rename(columns=new_column_names, inplace=True)
 
         # Handle missing values
@@ -100,14 +97,13 @@ class DataProcessor:
             emp_i = node_data.iloc[i]
             emp_j = node_data.iloc[j]
             if emp_i[edge_infer] == emp_j[edge_infer]:
-                if np.random.rand() < self.UPPER_RATIO:  # Same department but not 'sub-depart'
+                if np.random.rand() < self.UPPER_RATIO:
                     edges.append([i, j])
-            else:  # Defaults to handling by 'department' with chance
+            else:
                 if np.random.rand() < self.LOWER_RATIO:
                         edges.append([i, j])
 
     # if edges are given by user, relationship_data is not None, mapping current users to edges
-
     def edges_generator(self, node_data, edge_infer, edge_filepath=None):
         edges = []
         mapping_df = self.create_str_index_mapping(node_data, edge_infer)
@@ -141,7 +137,6 @@ class DataProcessor:
         return edge_index
 
     def numeric_dataset(self, df, node_features, label_column):
-        # Initialize LabelEncoder and MinMaxScaler
         le = LabelEncoder()
         scaler = MinMaxScaler()
         imputer = SimpleImputer(strategy='mean')
