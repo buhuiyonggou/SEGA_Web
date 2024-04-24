@@ -44,6 +44,7 @@ Follow these steps to get started with SEGA_Web:
 7. At the menu page of visualiation, you can choose what **centrality algorithms** and **community detection algorithms** to proceed and visualize your data.
 8. Procceed with dynamic diagram might take long time(sometimes white screen happens due to the limit capacity of CPU), please wait until the diagram shows up.
 9. After dynamic diagram is generated, please follow instructions on the page to explore other functionalities such as shortest path way.
+10. Available test datasets: **https://drive.google.com/drive/folders/1uCwr_ZzkuSFfV84o4sfSnQqpn8mDb0s3?usp=drive_link**
 
 ### Installation
 
