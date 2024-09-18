@@ -20,7 +20,7 @@ SEGA_Web's contributions are threefold, offering significant advancements in the
 3. **Flexible and Diverse Visualization:** With flexible input options and a wide range of visualization tools, SEGA_Web caters to diverse analytical needs, enabling users to explore and interpret their networks in various ways.
 
 ## Demo
-https://drive.google.com/file/d/1M1v4DAhNFBSsHt2Huavpymvo63mEydKN/view
+https://www.youtube.com/watch?v=_QHfgQk7ZC0
 
 ## How to Run
 
